@@ -3,6 +3,12 @@
 
 Box nil;
 
+#define X(x) #x,
+char* type_name[TYPE_MAX] = {
+TYPE_LIST
+};
+#undef X
+
 void type_init() {
     nil = box(NIL, 0);
 }
@@ -12,7 +18,7 @@ long is_box(Box x) {
 }
 
 long get_tag(Box x) {
-    if(!is_box(x)) return DOUB;
+    if(!is_box(x)) return F64;
     return (LONG(x) & TAG_MASK) >> TAG_SHIFT;
 }
 

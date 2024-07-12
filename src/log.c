@@ -22,7 +22,7 @@ void logPrint(log_level_t log_level, const char *file_name, int line,
 #endif // BUILD_RELEASE
   // print header
 #ifdef LOG_NO_SOURCE_POSITION
-  fprintf(stderr, "%s%-5s" RESET SET_E(LIGHT_CODE) RESET,
+  fprintf(stderr, "%s%-5s" RESET SET_E(LIGHT_CODE) " " RESET,
           log_level_color[log_level], log_level_flag[log_level]);
 #else
   fprintf(stderr, "%s%-5s" RESET SET_E(LIGHT_CODE) " %s:%-3d " RESET,

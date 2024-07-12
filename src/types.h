@@ -24,15 +24,24 @@ typedef Cell_t* Cell;
 #define TAG_MASK ((long)0xf << TAG_SHIFT)
 #define PAYLOAD_MASK (((long)1 << TAG_SHIFT) - 1)
 
-#define NIL  0
-#define INT  1
-#define DOUB 2
-#define SYM  3
-#define CONS 4
-#define PRIM 5
-#define CLOS 6
-#define LABL 7
-#define STRI 8
+#define TYPE_LIST \
+X(NIL) \
+X(INT) \
+X(F64) \
+X(SYM) \
+X(CON) \
+X(PRI) \
+X(CLO) \
+X(LAB) \
+X(STR)
+
+#define X(x) x,
+enum DataTypes {
+TYPE_LIST
+TYPE_MAX };
+#undef X
+
+extern char* type_name[TYPE_MAX];
 
 #define LONG(x) (* (long*) &x)
 #define BOX(x) (* (Box*) &x)

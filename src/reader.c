@@ -106,7 +106,7 @@ Box Read() {
 }
 
 #define cons_debug(name)\
-logDebug("  %12lx [%d] | %12lx [%d]", get_val(name->car), get_tag(name->car), get_val(name->cdr), get_tag(name->cdr))
+logDebug("  %12lx [%s]  | %12lx [%s]", get_val(name->car), type_name[get_tag(name->car)], get_val(name->cdr), type_name[get_tag(name->cdr)])
 
 Box read_list() {
     if (CH0 == ')') {
@@ -117,17 +117,22 @@ Box read_list() {
     head->car = read_form();
 
     Cell cons = head;
-    while (CH0 != ')') {
+    while (CH0 != ')' && !(CH0 == '.' && token_len == 1)) {
         Cell t = (Cell)get_mem(sizeof(Cell_t));
-        cons->cdr = box(CONS, LONG(t));
+        cons->cdr = box(CON, LONG(t));
         cons_debug(cons);
         cons = (Cell)get_val(cons->cdr);
         cons->car = read_form();
     }
-    cons->cdr = nil;
+    if(CH0 == '.' && token_len == 1) {
+        get_token();
+        cons->cdr = read_form();
+    } else {
+        cons->cdr = nil;
+    }
     cons_debug(cons);
     depth --;
-    return box(CONS, LONG(head));
+    return box(CON, LONG(head));
 }
 
 int numsym() {
@@ -158,9 +163,9 @@ Box read_atom() {
     switch (CH0) {
     case ':':
         // Request memory, populate it, box its address and return it
-        return box(LABL, (long)memcpy(get_mem(token_len + 1), token_buffer, token_len + 1));
+        return box(LAB, (long)memcpy(get_mem(token_len + 1), token_buffer, token_len + 1));
     case '"':
-        return box(STRI, (long)memcpy(get_mem(token_len), &token_buffer[1], token_len));
+        return box(STR, (long)memcpy(get_mem(token_len), &token_buffer[1], token_len));
     default:
         switch (numsym()) {
         case numSym_sym:

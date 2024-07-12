@@ -25,7 +25,7 @@ int main() {
     printsize();
 
     logDebug("Heap cells");
-    logDebug("    %12s [t] | %12s [t]", "car_value", "cdr_value");
+    logDebug("    %12s [TYPE] | %12s [TYPE]", "car_value", "cdr_value");
     while(1) {
         printf("%d > ", heap_avail());
         Box ret = Read();

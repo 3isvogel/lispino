@@ -18,38 +18,38 @@ void Print(Box ast) {
 }
 
 void line_print(Box ast) {
-    long val = get_val(ast);
-    Cell curr;
+    Cell val = (Cell)get_val(ast);
     switch(get_tag(ast)) {
         case NIL:
             printf("NIL");
             break;
         case INT:
-            printf("%d", (int)val);
+            printf("%ld", (long)val);
             break;
         case SYM:
             printf("%s", (char*)val);
             break;
-        case LABL:
+        case LAB:
             printf("%s", (char*)val);
             break;
-        case STRI:
+        case STR:
             printf("\"%s\"", (char*)val);
             break;
-        case DOUB:
+        case F64:
             printf("%f", ast);
             return;
-        case CONS:
+        case CON:
             // TODO for now cons cannot be created nor printed
             printf("(");
             do {
-                curr = (Cell)val;
-                line_print(curr->car);
-                if(get_tag(curr->cdr) != NIL)
-                    printf(" ");
-                else break;
-                val = get_val(curr->cdr);
-            } while(1);
+                ast = val->cdr;
+                line_print(val->car);
+                val = (Cell)get_val(ast);
+            } while(get_tag(ast) == CON && printf(" "));
+            if(get_tag(ast) != NIL) {
+                printf(" . ");
+                line_print(ast);
+            }
             printf(")");
             break;
         default:
