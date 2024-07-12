@@ -13,3 +13,10 @@ Use `make` because I dont't want to write shell scripts and please don't make me
 ```sh
 make
 ```
+
+Alternatively just build and run the project from make
+```sh
+make run
+```
+
+Also **PLEASE** use `-j<N>` when building, I put so much effort into making projects working fine with it
