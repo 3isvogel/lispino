@@ -34,7 +34,7 @@ char get() {
     return c;
 }
 
-void get_token() {
+Box get_token() {
     int i = 0;
     while (curr(' '))
         get();
@@ -63,7 +63,6 @@ void get_token() {
         if (get() != '"')
             fail(UNTERMINATED_STR);
         break;
-        break;
     default:
         do
           token_buffer[i++] = get();
@@ -71,7 +70,7 @@ void get_token() {
     }
     token_buffer[i] = '\0';
     token_len = i;
-    return;
+    return nil;
 }
 
 Box read_list();
@@ -96,13 +95,17 @@ Box read_form() {
         t = read_atom();
     }
     close_form();
-    if(depth < 0) fail(UNBALANCED);
     return t;
 }
 
 Box Read() {
     get_token();
-    return read_form();
+    Box t = read_form();
+    if(depth != 0) {
+        depth = 0;
+        return err(UNBALANCED);
+    }
+    return t;
 }
 
 #define cons_debug(name)\
@@ -111,7 +114,7 @@ logDebug("  %12lx [%s]  | %12lx [%s]", get_val(name->car), type_name[get_tag(nam
 Box read_list() {
     if (CH0 == ')') {
         depth --;
-        return nil;
+        return box(NIL, 1);
     }
     Cell head = get_mem(sizeof(Cell_t));
     head->car = read_form();

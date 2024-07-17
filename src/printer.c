@@ -1,6 +1,8 @@
 #include <stdio.h>
 #include "log.h"
 #include "printer.h"
+#include "errors.h"
+#include "heap.h"
 #include "types.h"
 
 #define PRINT_BUFFER_LEN 1024
@@ -15,10 +17,12 @@ void line_print(Box ast);
 void Print(Box ast) {
     line_print(ast);
     printf("\n");
+    C_GC();
 }
 
 void line_print(Box ast) {
     Cell val = (Cell)get_val(ast);
+    char* format;
     switch(get_tag(ast)) {
         case NIL:
             printf("NIL");
@@ -38,6 +42,9 @@ void line_print(Box ast) {
         case F64:
             printf("%f", ast);
             return;
+        case ERR:
+            printf("ERR[%s]", ERS[LONG(val)]);
+            return;
         case CON:
             // TODO for now cons cannot be created nor printed
             printf("(");
@@ -52,8 +59,12 @@ void line_print(Box ast) {
             }
             printf(")");
             break;
+        case PRI:
+            printf("<prim@%lx>", LONG(val));
+            break;
         default:
             printf("Uhhh...");
+            fail(UNEXPECTED_BRANCH);
     }
     return;
 }

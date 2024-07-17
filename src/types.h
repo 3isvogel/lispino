@@ -5,17 +5,22 @@
 
 typedef double Box;
 
-typedef union {
+typedef union Cell_t {
     struct {
         Box car,
             cdr;
     };
     struct {
-        int base,
-            stack;
+        union Cell_t *base,
+                     *stack;
+    };
+    struct {
+        char *name;
+        Box def;
     };
 } Cell_t;
 typedef Cell_t* Cell;
+typedef Box (*Closure)(Cell);
 
 #define TAG_SHIFT 48
 #define MASK_SHIFT 52
@@ -33,6 +38,8 @@ X(CON) \
 X(PRI) \
 X(CLO) \
 X(LAB) \
+X(ERR) \
+X(MOV) \
 X(STR)
 
 #define X(x) x,
@@ -45,13 +52,19 @@ extern char* type_name[TYPE_MAX];
 
 #define LONG(x) (* (long*) &x)
 #define BOX(x) (* (Box*) &x)
+#define CLOSURE(x) (* (Closure*) &x)
 
-extern Box nil;
-
-void type_init();
 long is_box(Box x);
 long get_tag(Box x);
 long get_val(Box x);
-Box box(int tag, long value);
+Box get_num_f(Box x);
+
+static inline Box box(int tag, long value) {
+    // just to be safe keep guard
+    long t = BOX_MASK | ((long)(tag & 0xf) << TAG_SHIFT) | (value & PAYLOAD_MASK);
+    return BOX(t);
+}
+
+#define nil box(NIL, 0)
 
 #endif//TYPES_H
