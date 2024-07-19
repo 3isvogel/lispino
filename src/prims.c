@@ -1,4 +1,5 @@
 #include "prims.h"
+#include "heap.h"
 #include "errors.h"
 #include "log.h"
 #include <string.h>
@@ -20,6 +21,7 @@ static Box num_op(Cell a, unsigned int op_id) {
         case INT:
             tot = get_num_f(a->car);
             break;
+        case ERR: return a->car;
         default: return box(ERR, WRONG_TYPE);
     }
     while(get_tag(a->cdr) == CON) {
@@ -39,8 +41,8 @@ static Box num_op(Cell a, unsigned int op_id) {
                     break;
                 }
                 break;
-            default:
-                return box(ERR, WRONG_TYPE);
+            case ERR: return a->car;
+            default: return box(ERR, WRONG_TYPE);
         }
     }
     if(!f) tot = box(INT, (long)tot);
@@ -59,6 +61,7 @@ Box f_div(Cell a) {
         case INT:
             tot = get_num_f(a->car);
             break;
+        case ERR: return a->car;
         default: return box(ERR, WRONG_TYPE);
     }
     while(get_tag(a->cdr) == CON) {
@@ -72,21 +75,45 @@ Box f_div(Cell a) {
                 }
                 tot /= t;
                 break;
-            default:
-                return box(ERR, WRONG_TYPE);
+            case ERR: return a->car;
+            default: return box(ERR, WRONG_TYPE);
         }
     }
     if(!f && tot == (long)tot) return box(INT, (long)tot);
     return tot;
 };
 
+#include "printer.h"
+
 Box ret_car(Cell a) {
-    return a->car;
+    switch(get_tag(a->car)) {
+        case ERR: return a->car;
+        case CON: return (*(Cell)get_val(a->car)).car;
+    }
+    return box(ERR, WRONG_TYPE);
 };
 
 Box ret_cdr(Cell a) {
-    return a->cdr;
+    switch(get_tag(a->car)) {
+        case ERR: return a->car;
+        case CON: return (*(Cell)get_val(a->car)).cdr;
+    }
+    return box(ERR, WRONG_TYPE);
 };
+
+Box const_cons(Cell a) {
+    switch(get_tag(a->cdr)) {
+        case ERR: return a->cdr;
+        case CON:
+            if(get_tag((*(Cell)get_val(a->cdr)).car) == ERR)
+                return (*(Cell)get_val(a->cdr)).car;
+            Cell mem = get_mem(sizeof(Cell_t));
+            mem->car = a->car;
+            mem->cdr = (*(Cell)get_val(a->cdr)).car;
+            return box(CON, LONG(mem));
+    }
+    return box(ERR, WRONG_ARGS_NUMBER);
+}
 
 struct {char* name; Closure procedure;} prim_env[] = {
     {"+", f_add},
@@ -95,6 +122,7 @@ struct {char* name; Closure procedure;} prim_env[] = {
     {"/", f_div},
     {"car", ret_car},
     {"cdr", ret_cdr},
+    {"cons", const_cons},
     {"", 0}
 };
 

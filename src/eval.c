@@ -40,13 +40,15 @@ Box apply(Cell ast) {
     switch(get_tag(ast->car)) {
         case PRI:
             // Check only on primitives, allows creating clojures with no args
-            if(get_tag(ast->cdr) != CON) return box(ERR, WRONG_ARGUMENTS);
+            if(get_tag(ast->cdr) != CON) return box(ERR, WRONG_ARGS_NUMBER);
             f = (Closure)get_val(ast->car);
             Box val = f((Cell)get_val(ast->cdr));
             return val;
     }
     return box(ERR, NOT_A_FUNCTION);
 }
+
+#include "printer.h"
 
 Box Eval(Box ast) {
     switch(get_tag(ast)) {
