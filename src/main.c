@@ -4,6 +4,7 @@
 #include "eval.h"
 #include "printer.h"
 #include "prims.h"
+#include "errors.h"
 #include "heap.h"
 #include "log.h"
 
@@ -35,11 +36,9 @@ void printsize() {
 
 int main() {
     logSetLevel(LOG_LEVEL_DEBUG);
-    printsize();
-    Cell_t a = {.car = 1.0, .cdr = -1.0};
+    if(!env_init()) fail(ENV_INIT_FAIL);
 
-    logDebug("Heap cells");
-    logDebug("    %12s [TYPE] | %12s [TYPE]", "car_value", "cdr_value");
+    logDebug("HEAP%12s [TYPE] | %12s [TYPE]", "car_value", "cdr_value");
     while(1) {
         printf("%d > ", heap_avail());
         Box ret = Read();

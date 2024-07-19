@@ -1,7 +1,7 @@
-#include "prims.h"
 #include "heap.h"
 #include "errors.h"
 #include "log.h"
+#include "prims.h"
 #include <string.h>
 
 // Can assume that a is always a CONS
@@ -115,23 +115,8 @@ Box const_cons(Cell a) {
     return box(ERR, WRONG_ARGS_NUMBER);
 }
 
-struct {char* name; Closure procedure;} prim_env[] = {
-    {"+", f_add},
-    {"-", f_sub},
-    {"*", f_mul},
-    {"/", f_div},
-    {"car", ret_car},
-    {"cdr", ret_cdr},
-    {"cons", const_cons},
-    {"", 0}
+#define X(a,b) {#a, b},
+Prim prim_env[PRIMITIVE_INDEX_MAX] = {
+    PRIMITIVE_LIST
 };
-
-Box prim_solve(char* name) {
-    int i = 0;
-    while(strlen(prim_env[i].name)) {
-        if(!strcmp(prim_env[i].name, name))
-            return box(PRI, LONG(prim_env[i].procedure));
-        i++;
-    }
-    return box(ERR, SYMBOL_NOT_DEFINED);
-}
+#undef X

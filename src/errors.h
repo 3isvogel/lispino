@@ -15,6 +15,8 @@ X(WRONG_ARGUMENTS)      \
 X(WRONG_ARGS_NUMBER)    \
 X(WRONG_TYPE)           \
 X(DIV_ZERO)             \
+X(ENV_INIT_FAIL)        \
+X(OUT_OF_STACK)         \
 X(PTR_MOVED)
     
 #define X(x) x,

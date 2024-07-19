@@ -53,6 +53,7 @@ extern char* type_name[TYPE_MAX];
 #define LONG(x) (* (long*) &x)
 #define BOX(x) (* (Box*) &x)
 #define CLOSURE(x) (* (Closure*) &x)
+#define CELL(x) ((Cell)get_val(x))
 
 long is_box(Box x);
 long get_tag(Box x);

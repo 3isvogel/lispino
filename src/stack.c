@@ -1,6 +1,8 @@
 #include "log.h"
 #include "stack.h"
 #include "heap.h"
+#include "prims.h"
+#include "errors.h"
 #include <string.h>
 
 Cell_t stack[STACK_MAX_LEN];
@@ -15,7 +17,7 @@ static inline void d(char* f, Cell_t cell) {
 }
 
 void* stack_push(Cell_t cell) {
-    if (!avail()) return NULL;
+    if (!avail()) fail(OUT_OF_STACK);//return NULL;
     *(ptr.stack) = cell;
     ptr.stack ++;
     d((char*)__FUNCTION__, cell);
@@ -32,7 +34,7 @@ void* stack_pop(Cell cell) {
 
 void* frame_new() {
     logDebug("frame_new");
-    if (!stack_push(ptr)) return NULL;
+    stack_push(ptr);
     ptr.base = ptr.stack;
     return stack;
 }
@@ -64,6 +66,8 @@ Cell outer_env() {
     return &stack_env;
 }
 
+#include "printer.h"
+
 Box define_sym(char* name, Box def) {
     // TODO: search if definition already exists in current stack
     int found;
@@ -72,9 +76,30 @@ Box define_sym(char* name, Box def) {
         found = !strcmp(name, p->name);
     }
     if (found) {
-        p->def = def;
+        (--p)->def = def;
     } else {
         stack_push((Cell_t){.name = name, .def = def});
     }
     return def;
+}
+
+Box get_sym(char* name) {
+    Cell env = get_env();
+    do {
+        for(Cell sym = env->base; sym < env->stack; sym++) {
+            if(!strcmp(sym->name, name)) {
+                return sym->def;
+            }
+        }
+    } while((env = outer_env()));
+    return box(ERR, SYMBOL_NOT_DEFINED);
+}
+
+void* env_init() {
+    logInfo("Initialize env");
+    for(Prim *p = prim_env; p < &prim_env[PRIMITIVE_INDEX_MAX]; p++) {
+        if(!define_sym(p->name, box(PRI, LONG(p->procedure))))
+            return NULL;
+    }
+    return prim_env;
 }
