@@ -15,12 +15,12 @@ typedef union Cell_t {
                      *stack;
     };
     struct {
-        char *name;
+        union Cell_t* name;
         Box def;
     };
 } Cell_t;
 typedef Cell_t* Cell;
-typedef Box (*Closure)(Cell);
+typedef Box (*Closure)(Box);
 
 #define TAG_SHIFT 48
 #define MASK_SHIFT 52
@@ -40,6 +40,7 @@ X(CLO) \
 X(LAB) \
 X(ERR) \
 X(MOV) \
+X(RAW) \
 X(STR)
 
 #define X(x) x,

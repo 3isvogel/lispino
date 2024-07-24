@@ -21,7 +21,7 @@ void Print(Box ast) {
 }
 
 void line_print(Box ast) {
-    Cell val = (Cell)get_val(ast);
+    Cell val = CELL(ast);
     char* format;
     switch(get_tag(ast)) {
         case NIL:
@@ -31,18 +31,18 @@ void line_print(Box ast) {
             printf("%ld", (long)val);
             break;
         case SYM:
-            printf("%s", (char*)val);
+            printf("%s", raw_adr(val));
             break;
         case LAB:
-            printf("%s", (char*)val);
+            printf("%s", raw_adr(val));
             break;
         case STR:
-            printf("\"%s\"", (char*)val);
+            printf("\"%s\"", raw_adr(val));
             break;
         case F64:
             printf("%f", ast);
             return;
-        case ERR:
+        case ERR:;
             printf("ERR[%s]", ERS[LONG(val)]);
             return;
         case CON:
@@ -51,7 +51,7 @@ void line_print(Box ast) {
             do {
                 ast = val->cdr;
                 line_print(val->car);
-                val = (Cell)get_val(ast);
+                val = CELL(ast);
             } while(get_tag(ast) == CON && printf(" "));
             if(get_tag(ast) != NIL) {
                 printf(" . ");
@@ -62,8 +62,19 @@ void line_print(Box ast) {
         case PRI:
             printf("<prim@%lx>", LONG(val));
             break;
+        case CLO:
+            printf("<clos@%lx", LONG(val));
+            ast = val->car;
+            while(get_tag(ast) == CON) {
+                val = CELL(ast);
+                printf(" ");
+                line_print(val->car);
+                ast = val->cdr;
+            }
+            printf(">");
+            break;
         default:
-            printf("Uhhh...");
+            logError("uhhh...");
             fail(UNEXPECTED_BRANCH);
     }
     return;

@@ -1,7 +1,6 @@
 #include "heap.h"
 #include "stack.h"
 #include "errors.h"
-#include "types.h"
 #include "log.h"
 #include "string.h"
 #include <stdlib.h>
@@ -23,9 +22,11 @@ void find_stack_base() {
     logDebug("Stack base: %p", stack_base);
 }
 
-char* name_move(char* name) {
-    int len = strlen(name);
-    return (char*)memcpy(get_mem(len + 1), name, len + 1);
+Cell name_move(Cell name) {
+    int len = strlen(raw_adr(name));
+    Cell new_name = rawcpy(raw_mem(len + 1), name, len + 1);
+    *((Box*)name) = box(MOV, LONG(new_name));
+    return new_name;
 }
 
 Cell cons_move(Cell cons) {
@@ -71,28 +72,29 @@ Box box_move(Box node) {
             /// in the second case treat first 8 bytes as a moved value (2 bytes
             /// TAG and 48 bytes address of moved value)
             /// ----
-            //if((moved = check_moved(node)))
-            //    ret = box(get_tag(node), moved);
-            //else
-            return box(get_tag(node), (long)name_move((char*)get_val(node)));
+            if((moved = check_moved(node)))
+                return box(get_tag(node), LONG(moved));
+            return box(get_tag(node), (long)name_move(CELL(node)));
     }
     return node;
 }
 
-void gc(Box* usr_root, int size) {
+void* gc(Box* usr_root, int size) {
     logDebug("Called GC");
     if(!stack_base) find_stack_base();
     Cell stack_top = get_env()->stack;
-    logDebug("Stack top:  %p", stack_top);
     heap_idx = 0;
     curr_heap ^= 1;
-    for(Cell root = stack_base; root<stack_top; root++)
+    for(Cell root = stack_base; root<stack_top; root++) {
         if((Box*)root->name >= &heap[0][0] && (Box*)root->name < &heap[1][HEAP_MAX_LEN]) {
             root->name = name_move(root->name);
             root->def = box_move(root->def);
         }
-    for(Box* root = usr_root; root < usr_root + size; root ++) //update
-            *root = box_move(*root);
+    }
+    for(int i = 0; i < size; i++) {//update
+        usr_root[i] = box_move(usr_root[i]);
+    }
+    return NULL;
 }
 
 int heap_avail() {
@@ -116,5 +118,18 @@ Cell get_mem(int size) {
     return mem;
 }
 
-
 int max_heap_size() {return HEAP_MAX_LEN;}
+
+Cell rawcpy(Cell dst, Cell src, int len) {
+    if(len < 0) return dst;
+    *((Box*)dst) = box(RAW, 0);
+    memcpy(raw_adr(dst), raw_adr(src), len);
+    return dst;
+}
+
+Cell raw_mem(int len) {
+    if(len < 0) return NULL;
+    Cell ret = get_mem(len + 2);
+    *((Box*)ret) = box(RAW, 0);
+    return ret;
+}

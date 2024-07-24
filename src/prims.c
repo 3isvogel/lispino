@@ -2,6 +2,7 @@
 #include "errors.h"
 #include "log.h"
 #include "prims.h"
+#include "stack.h"
 #include <string.h>
 
 // Can assume that a is always a CONS
@@ -13,7 +14,8 @@ enum Op_index {
     MUL
 };
 
-static Box num_op(Cell a, unsigned int op_id) {
+static Box num_op(Box b, unsigned int op_id) {
+    Cell a = CELL(b);
     int f = 0;
     Box tot;
     switch(get_tag(a->car)) {
@@ -49,13 +51,14 @@ static Box num_op(Cell a, unsigned int op_id) {
     return tot;
 }
 
-Box f_add(Cell a) { return num_op(a, ADD); }
-Box f_sub(Cell a) { return num_op(a, SUB); }
-Box f_mul(Cell a) { return num_op(a, MUL); }
+Box f_add(Box a) { return num_op(a, ADD); }
+Box f_sub(Box a) { return num_op(a, SUB); }
+Box f_mul(Box a) { return num_op(a, MUL); }
 
-Box f_div(Cell a) {
+Box f_div(Box b) {
     Box t; int f = 0;
     Box tot;
+    Cell a = CELL(b);
     switch(get_tag(a->car)) {
         case F64: f |= 1;
         case INT:
@@ -85,37 +88,54 @@ Box f_div(Cell a) {
 
 #include "printer.h"
 
-Box ret_car(Cell a) {
+Box ret_car(Box b) {
+    Cell a = CELL(b);
     switch(get_tag(a->car)) {
         case ERR: return a->car;
-        case CON: return (*(Cell)get_val(a->car)).car;
-    }
-    return box(ERR, WRONG_TYPE);
-};
-
-Box ret_cdr(Cell a) {
-    switch(get_tag(a->car)) {
-        case ERR: return a->car;
-        case CON: return (*(Cell)get_val(a->car)).cdr;
-    }
-    return box(ERR, WRONG_TYPE);
-};
-
-Box const_cons(Cell a) {
-    switch(get_tag(a->cdr)) {
-        case ERR: return a->cdr;
         case CON:
-            if(get_tag((*(Cell)get_val(a->cdr)).car) == ERR)
-                return (*(Cell)get_val(a->cdr)).car;
+        case CLO: 
+            return (*(Cell)get_val(a->car)).car;
+    }
+    return box(ERR, WRONG_TYPE);
+};
+
+Box ret_cdr(Box b) {
+    Cell a = CELL(b);
+    switch(get_tag(a->car)) {
+        case ERR: return a->car;
+        case CON:
+        case CLO: 
+            return (*(Cell)get_val(a->car)).cdr;
+    }
+    return box(ERR, WRONG_TYPE);
+};
+
+Box const_cons(Box b) {
+    if(get_tag(b) != CON) return box(ERR, WRONG_ARGS_NUMBER);
+    Cell a = CELL(b);
+    Box car = a->car, cdr = a->cdr;
+    Cell ccar = CELL(car), ccdr = CELL(cdr);
+    if(get_tag(a->car) == ERR) return a->car;
+    switch(get_tag(cdr)) {
+        //case ERR: return cdr;
+        case CON:
+            if(get_tag(ccdr->car) == ERR) return ccdr->car;
             Cell mem = get_mem(sizeof(Cell_t));
             mem->car = a->car;
-            mem->cdr = (*(Cell)get_val(a->cdr)).car;
+            mem->cdr = ccdr->car;
             return box(CON, LONG(mem));
     }
     return box(ERR, WRONG_ARGS_NUMBER);
 }
 
-#define X(a,b) {#a, b},
+Box env_reset(Box a) {
+    while(frame_del());
+    gc(NULL,0);
+    env_init();
+    return box(NIL, 0);
+}
+
+#define X(a,b) {(Cell)"\xff\xff" #a, b},
 Prim prim_env[PRIMITIVE_INDEX_MAX] = {
     PRIMITIVE_LIST
 };

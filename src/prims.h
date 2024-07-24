@@ -9,7 +9,8 @@ X(*,    f_mul)          \
 X(/,    f_div)          \
 X(car,  ret_car)        \
 X(cdr,  ret_cdr)        \
-X(cons, const_cons)
+X(cons, const_cons)     \
+X(reset, env_reset)
 
 #define X(a, b) PRIMITIVE_INDEX_##b,
 enum Prims_indexes {
@@ -18,7 +19,7 @@ enum Prims_indexes {
 };
 #undef X
 
-typedef struct {char* name; Closure procedure;} Prim;
+typedef struct {Cell name; Closure procedure;} Prim;
 extern Prim prim_env[PRIMITIVE_INDEX_MAX];
 
 #endif//PRIMS_H

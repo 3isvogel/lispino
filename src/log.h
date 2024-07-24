@@ -80,6 +80,7 @@ void logPrint(log_level_t log_level, const char *file_name, int line,
 #define NOTHING                                                                \
   do {                                                                         \
   } while (0)
+#define logAlloc(...) NOTHING
 #define logDebug(...) NOTHING
 #define logInfo(...) NOTHING
 #define logWarning(...) NOTHING

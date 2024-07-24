@@ -49,6 +49,7 @@ Box get_token() {
     case '"':
         do {
             token_buffer[i++] = get();
+            if(curr('"')) {get(); goto finalize;}
             while (curr('\\') && i < TOKENBUF_MAX_LEN) {
                 get();
                 // https://github.com/Robert-van-Engelen/lisp-cheney/blob/main/src/lisp-cheney.c
@@ -68,6 +69,7 @@ Box get_token() {
           token_buffer[i++] = get();
         while (i < TOKENBUF_MAX_LEN && !curr(' ') && !special());
     }
+finalize:
     token_buffer[i] = '\0';
     token_len = i;
     return nil;
@@ -166,13 +168,13 @@ Box read_atom() {
     switch (CH0) {
     case ':':
         // Request memory, populate it, box its address and return it
-        return box(LAB, (long)memcpy(get_mem(token_len + 1), token_buffer, token_len + 1));
+        return box(LAB, (long)memcpy(((char*)raw_mem(token_len + 1)) + 2, (Cell)token_buffer, token_len + 1) - 2);
     case '"':
-        return box(STR, (long)memcpy(get_mem(token_len), &token_buffer[1], token_len));
+        return box(STR, (long)memcpy(((char*)raw_mem(token_len) + 2), (Cell)&token_buffer[1], token_len) - 2);
     default:
         switch (numsym()) {
         case numSym_sym:
-            return box(SYM, (long)memcpy(get_mem(token_len + 1), token_buffer, token_len + 1));
+            return box(SYM, (long)memcpy(((char*)raw_mem(token_len + 1) + 2), (Cell)token_buffer, token_len + 1) - 2);
         case numSym_int:
             return box(INT, (long)atoi(token_buffer));
         case numSym_double:

@@ -34,6 +34,8 @@ void printsize() {
     logInfo("Total:      \t%d\t(%dK)", t, t/K); 
 }
 
+#include "printer.h"
+
 int main() {
     logSetLevel(LOG_LEVEL_DEBUG);
     if(!env_init()) fail(ENV_INIT_FAIL);
@@ -41,7 +43,10 @@ int main() {
     logDebug("HEAP%12s [TYPE] | %12s [TYPE]", "car_value", "cdr_value");
     while(1) {
         printf("%d > ", heap_avail());
+        // flush for when using pipes 
+        fflush(stdout);
         Box ret = Read();
+        Print(ret);
         GC(&ret, 1);
         ret = Eval(ret);
         logDebug("result: %12x [%s]", get_val(ret), type_name[get_tag(ret)]);

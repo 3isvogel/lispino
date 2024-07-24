@@ -12,8 +12,8 @@ static inline int avail() {return &stack[STACK_MAX_LEN] - ptr.stack; }
 
 static inline void d(char* f, Cell_t cell) {
     static int h = 0;
-    if(!h) {logDebug("%-10s %18s %18s %12s %12s %4s == Stack", "function", "cell_car", "cell_cdr", "bp", "sp", "free"); h=1;}
-    logDebug("%-10s %18p %18p %12x %12x %4d", f, cell.car, cell.cdr, ptr.base, ptr.stack, avail());
+    if(!h) {logDebug("%-10s  %11s  %18s  %7s  %7s  %5s == Stack", "function", "cell_car", "cell_cdr", "bp", "sp", "free"); h=1;}
+    logDebug("%-10s  %11p  %18p  %7x  %7x  %5d", f, cell.car, cell.cdr, ptr.base, ptr.stack, avail());
 }
 
 void* stack_push(Cell_t cell) {
@@ -68,26 +68,28 @@ Cell outer_env() {
 
 #include "printer.h"
 
-Box define_sym(char* name, Box def) {
+Box define_sym(Cell name, Box def) {
     // TODO: search if definition already exists in current stack
     int found;
     Cell p;
     for(p = ptr.base, found = 0; p<ptr.stack && (!found); p++) {
-        found = !strcmp(name, p->name);
+        found = !strcmp(raw_adr(name), raw_adr(p->name));
     }
     if (found) {
+        logInfo("found");
         (--p)->def = def;
     } else {
+        logInfo("new");
         stack_push((Cell_t){.name = name, .def = def});
     }
     return def;
 }
 
-Box get_sym(char* name) {
+Box get_sym(Cell name) {
     Cell env = get_env();
     do {
         for(Cell sym = env->base; sym < env->stack; sym++) {
-            if(!strcmp(sym->name, name)) {
+            if(!strcmp(raw_adr(sym->name), raw_adr(name))) {
                 return sym->def;
             }
         }

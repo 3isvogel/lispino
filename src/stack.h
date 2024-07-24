@@ -14,7 +14,7 @@ void* frame_del();
 void frame_rst();
 Cell get_env();
 Cell outer_env();
-Box define_sym(char* name, Box def);
-Box get_sym(char* name);
+Box define_sym(Cell name, Box def);
+Box get_sym(Cell name);
 
 #endif//STACKS_H
