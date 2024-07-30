@@ -76,10 +76,8 @@ Box define_sym(Cell name, Box def) {
         found = !strcmp(raw_adr(name), raw_adr(p->name));
     }
     if (found) {
-        logInfo("found");
         (--p)->def = def;
     } else {
-        logInfo("new");
         stack_push((Cell_t){.name = name, .def = def});
     }
     return def;

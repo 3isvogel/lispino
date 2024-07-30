@@ -34,7 +34,6 @@ void printsize() {
     logInfo("Total:      \t%d\t(%dK)", t, t/K); 
 }
 
-#include "printer.h"
 
 int main() {
     logSetLevel(LOG_LEVEL_DEBUG);
@@ -46,8 +45,9 @@ int main() {
         // flush for when using pipes 
         fflush(stdout);
         Box ret = Read();
-        Print(ret);
+        logWarning("Read:");
         GC(&ret, 1);
+        Print(ret);
         ret = Eval(ret);
         logDebug("result: %12x [%s]", get_val(ret), type_name[get_tag(ret)]);
         Print(ret);

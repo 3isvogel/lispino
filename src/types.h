@@ -43,6 +43,16 @@ X(MOV) \
 X(RAW) \
 X(STR)
 
+#define is_type(val, type) ((type) == ((val) | (type)))
+
+// composite typtes
+#define NUM (INT|F64)
+#define num_tag(x) is_type(x, NUM)
+#define ANY_CON (CON|CLO)
+#define con_tag(x) is_type(x, ANY_CON)
+#define ANY_STR (SYM|LAB|STR)
+#define str_tag(x) is_type(x, ANY_STR)
+
 #define X(x) x,
 enum DataTypes {
 TYPE_LIST
