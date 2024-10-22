@@ -5,8 +5,16 @@
 #include "errors.h"
 #include <string.h>
 
-Cell_t stack[STACK_MAX_LEN];
-Cell_t ptr = {.base = stack, .stack = stack};
+Cell_t* stack;
+Cell_t ptr;
+
+Cell_t* init_stack(unsigned int size) {
+    stack = (Cell_t*)malloc(sizeof(Cell_t) * size);
+    ptr = (Cell_t){.base = stack, .stack = stack};
+    logAlloc("Allocating stack at %p (%p, %p)", stack, ptr.base, ptr.stack);
+    return stack;
+}
+void del_stack() { free(stack); }
 
 static inline int avail() {return &stack[STACK_MAX_LEN] - ptr.stack; }
 

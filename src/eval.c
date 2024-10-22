@@ -30,32 +30,6 @@ Box eval_ast(Box ast) {
     return ast;
 }
 
-Box apply(Cell ast) {
-    Closure f;
-    Box defs, args, rets;
-    switch(get_tag(ast->car)) {
-        case PRI:
-            f = (Closure)get_val(ast->car);
-            Box val = f(ast->cdr);
-            return val;
-        case CLO:
-            frame_new();
-            defs = CELL(ast->car)->car;
-            args = ast->cdr;
-            while(get_tag(defs) == CON) {
-                if (get_tag(args) == CON) {
-                    define_sym(CELL(CELL(defs)->car), CELL(args)->car);
-                    args = CELL(args)->cdr;
-                } else { define_sym(CELL(CELL(defs)->car), nil); }
-                defs = CELL(defs)->cdr;
-            }
-            rets = Eval(CELL(CELL(ast->car)->cdr)->car);
-            frame_del();
-            return rets;
-    }
-    return box(ERR, NOT_A_FUNCTION);
-}
-
 Box lambda_ops(Box ast) {
     if(get_tag(ast) != CON)
         return box(ERR, WRONG_ARGS_NUMBER);
@@ -103,9 +77,16 @@ Box def_ops(Box ast) {
 
 #include "printer.h"
 
+int frame_lvl = 0;
+
 Box Eval(Box ast) {
     Box first; Cell cc;
     char* sym;
+    // apply
+    Closure f;
+    Box defs, args, rets; Cell cast;
+restart:
+    logDebug("Evaling: %lx", LONG(ast));
     switch(get_tag(ast)) {
         case CON:
             cc = CELL(ast);
@@ -121,12 +102,18 @@ Box Eval(Box ast) {
                 } else if(!strcmp(sym, "if")) {
                     if(get_tag(cc->cdr) != CON || get_tag((cc = CELL(cc->cdr))->cdr) != CON)
                         return box(ERR, WRONG_ARGS_NUMBER);
-                    if(get_tag(Eval(cc->car)) != NIL)
-                        return Eval((cc = CELL(cc->cdr))->car);
+                    if(get_tag(Eval(cc->car)) != NIL) {
+                        ast = CELL(cc->cdr)->car;
+                        goto restart;
+                        //return Eval((cc = CELL(cc->cdr))->car);
+                    }
                     if(get_tag(cc->cdr) == CON) {
                         cc = CELL(cc->cdr);
-                        if(get_tag(cc->cdr) == CON)
-                            return Eval(CELL(cc->cdr)->car);
+                        if(get_tag(cc->cdr) == CON) {
+                            ast = CELL(cc->cdr)->car;
+                            goto restart;
+                            //return Eval(CELL(cc->cdr)->car);
+                        }
                         return box(NIL, 0);
                     } return box(ERR, WRONG_ARGUMENTS);
                 } else if (!strcmp(sym, "do")) {
@@ -141,7 +128,32 @@ Box Eval(Box ast) {
                 }
             }
             ast = eval_ast(ast);
-            return apply(CELL(ast));
+            cast = CELL(ast);
+            switch(get_tag(cast->car)) {
+                case PRI:
+                    f = (Closure)get_val(cast->car);
+                    return f(cast->cdr);
+                case CLO:
+                    if(!frame_lvl) {
+                        frame_lvl++;
+                        frame_new();
+                    } else {
+                        frame_rst();
+                    }
+                    defs = CELL(cast->car)->car;
+                    args = cast->cdr;
+                    while(get_tag(defs) == CON) {
+                        if (get_tag(args) == CON) {
+                            define_sym(CELL(CELL(defs)->car), CELL(args)->car);
+                            args = CELL(args)->cdr;
+                        } else { define_sym(CELL(CELL(defs)->car), nil); }
+                        defs = CELL(defs)->cdr;
+                    }
+                    ast = CELL(CELL(cast->car)->cdr)->car;
+                    goto restart;
+            }
+            return box(ERR, NOT_A_FUNCTION);
+            // PREVIOUSLY WAS: return apply(CELL(ast));
     }
     return eval_ast(ast);
 }

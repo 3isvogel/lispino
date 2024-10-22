@@ -2,10 +2,10 @@
 #define STACKS_H
 
 #include <types.h>
+#include "mem.h"
 
-#ifndef STACK_MAX_LEN
-#define STACK_MAX_LEN 4096
-#endif
+Cell_t* init_stack(unsigned int size);
+void del_stack();
 
 void* env_init();
 

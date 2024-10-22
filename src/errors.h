@@ -4,6 +4,8 @@
 #include "types.h"
 
 #define ERROR_LIST      \
+X(UNKNOWN_FAILURE)      \
+X(MEM_SETUP_FAIL)       \
 X(EOF_REACHED)          \
 X(OUT_OF_MEMORY)        \
 X(UNBALANCED)           \
@@ -29,8 +31,7 @@ ERROR_LIST
 
 extern char* ERS[ERR_MAX];
 
-void fail(int e);
+int fail(int e);
 Box err(int e);
-void caccamerda();
 
 #endif//ERRORS_H

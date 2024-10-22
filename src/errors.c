@@ -2,6 +2,7 @@
 #include "errors.h"
 #include "types.h"
 #include "log.h"
+#include "mem.h"
 
 #define X(x) #x,
 char* ERS[ERR_MAX] = {
@@ -9,19 +10,15 @@ ERROR_LIST
 };
 #undef X
 
-void fail(int e) {
-    if(e)
-        logError("Closing: %s", ERS[e]);
+int fail(int e) {
+    if(e == EOF_REACHED)
+        logWarning("Closing: %s", ERS[EOF_REACHED]);
     else
-        logWarning("Closing: %s", ERS[0]);
+        logError("Closing: %s", ERS[e]);
+    del_memory();
     exit(e);
 }
 
 Box err(int e) {
     return box(ERR, e);
-}
-
-void caccamerda() {
-    logError("CACCAMERDA");
-    exit(-1);
 }

@@ -2,13 +2,13 @@
 #define READER_H
 
 #include "types.h"
+#include "mem.h"
 
-#ifndef TOKENBUF_MAX_LEN
-#define TOKENBUF_MAX_LEN 32
-#endif
-
-extern char token_buffer[(TOKENBUF_MAX_LEN + 1)];
+extern char* token_buffer;
 extern unsigned int token_buffer_len;
+
+char* init_reader(unsigned int size);
+void del_reader();
 
 Box Read();
 

@@ -6,10 +6,17 @@
 #include <stdio.h>
 #include <string.h>
 
-char token_buffer[(TOKENBUF_MAX_LEN + 1)], see = ' ';
+char* token_buffer, see = ' ';
 unsigned int token_len;
 
 #define CH0 token_buffer[0]
+
+char* init_reader(unsigned size) {
+    token_buffer = (char*)malloc(sizeof(char) * (size + 1));
+    logAlloc("Allocating tokenbuffer at %p", token_buffer);
+    return token_buffer;
+}
+void del_reader() { free(token_buffer); }
 
 int curr(char c) {
     if (c == ' ') {
@@ -183,6 +190,5 @@ Box read_atom() {
     case numSym_double:
         return strtod(token_buffer, NULL);
     }
-    caccamerda();
-    return -1;
+    return fail(0);
 }

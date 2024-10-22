@@ -17,11 +17,11 @@ CXX = g++
 LD = gcc
 
 # C flags
-CFLAGS = -DHEAP_MAX_LEN=2048 -DTOKENBUF_MAX_LEN=2048 -DSTACK_MAX_LEN=512 #-DBUILD_RELEASE
+CFLAGS = -O2 # -DBUILD_RELEASE
 # C++ flags
 CXXFLAGS = 
 # C/C++ flags
-CPPFLAGS = -O2 
+CPPFLAGS =
 # dependency-generation flags
 DEPFLAGS = -MMD -MP -Isrc/
 # linker flags

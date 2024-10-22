@@ -7,6 +7,7 @@
 #include "errors.h"
 #include "heap.h"
 #include "log.h"
+#include "mem.h"
 
 // FIXME: problems with GC, it changes address of everything, so either
 // - add ANOTHER stack in which to store vars in boxed form and update pointers
@@ -36,7 +37,8 @@ void printsize() {
 
 
 int main() {
-    logSetLevel(LOG_LEVEL_DEBUG);
+    logSetLevel(LOG_LEVEL_ALLOC);
+    if (!init_memory()) fail(MEM_SETUP_FAIL);
     if(!env_init()) fail(ENV_INIT_FAIL);
 
     logDebug("HEAP%12s [TYPE] | %12s [TYPE]", "car_value", "cdr_value");
@@ -45,9 +47,7 @@ int main() {
         // flush for when using pipes 
         fflush(stdout);
         Box ret = Read();
-        logWarning("Read:");
         GC(&ret, 1);
-        Print(ret);
         ret = Eval(ret);
         logDebug("result: %12x [%s]", get_val(ret), type_name[get_tag(ret)]);
         Print(ret);

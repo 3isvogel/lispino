@@ -5,7 +5,7 @@
 #include "string.h"
 #include <stdlib.h>
 
-Box heap[2][HEAP_MAX_LEN];
+Box** heap; // [2][HEAP_MAX_LEN];
 int heap_idx = 0;
 int curr_heap = 0;
 
@@ -13,13 +13,31 @@ Cell stack_base = NULL;
 
 #define HEAP_FAIL_ON_OOM
 
+int init_heap(unsigned int size) {
+    int success = 1;
+    heap = (Box**)malloc(sizeof(Box*) * 2);
+    success = success && heap;
+    for(int i=0; i<2 && success; i++) {
+        heap[i] = (Box*)malloc(sizeof(Box) * size);
+        success = success && heap[i];
+    }
+    logAlloc("Allocating heap at %p (%p, %p)", heap, heap[0], heap[1]);
+    return success;
+}
+void del_heap(){
+    for(int i=0; i<2; i++)
+        free(heap[i]);
+    free(heap);
+}
+
 void find_stack_base() {
     stack_base = get_env();
+    logDebug("Stack base: %p", stack_base);
     Cell t;
     while((t = outer_env())) {
         stack_base = t;
     }
-    logDebug("Stack base: %p", stack_base);
+    stack_base = stack_base->base;
 }
 
 Cell name_move(Cell name) {
