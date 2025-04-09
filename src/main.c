@@ -35,9 +35,10 @@ void printsize() {
     logInfo("Total:      \t%d\t(%dK)", t, t/K); 
 }
 
+#define DEFAULT_LOG_LEVEL LOG_LEVEL_ALLOC
 
-int main() {
-    logSetLevel(LOG_LEVEL_ALLOC);
+int main(int argc, char** argv) {
+    logSetLevel(argc > 1 ? atoi(argv[1]) : DEFAULT_LOG_LEVEL);
     if (!init_memory()) fail(MEM_SETUP_FAIL);
     if(!env_init()) fail(ENV_INIT_FAIL);
 

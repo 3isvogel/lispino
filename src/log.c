@@ -25,7 +25,7 @@ void logPrint(log_level_t log_level, const char *file_name, int line,
   fprintf(stderr, "%s%-5s" RESET SET_E(LIGHT_CODE) " " RESET,
           log_level_color[log_level], log_level_flag[log_level]);
 #else
-  fprintf(stderr, "%s%-5s" RESET SET_E(LIGHT_CODE) " %s:%-3d " RESET,
+  fprintf(stderr, "%s%-5s" RESET SET_E(LIGHT_CODE) " %16s:%-3d " RESET,
           log_level_color[log_level], log_level_flag[log_level], file_name,
           line);
 #endif
