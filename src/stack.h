@@ -1,7 +1,7 @@
 #ifndef STACKS_H
 #define STACKS_H
 
-#include <types.h>
+#include "types.h"
 #include "mem.h"
 
 Cell_t* init_stack(unsigned int size);

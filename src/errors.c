@@ -1,24 +1,26 @@
 #include <stdlib.h>
 #include "errors.h"
-#include "types.h"
 #include "log.h"
 #include "mem.h"
 
-#define X(x) #x,
-char* ERS[ERR_MAX] = {
-ERROR_LIST
+#define X(x,s) #x,
+char* printableSignals[SIGNAL_SIZE] = {
+SIGNAL_LIST
 };
 #undef X
 
-int fail(int e) {
-    if(e == EOF_REACHED)
-        logWarning("Closing: %s", ERS[EOF_REACHED]);
-    else
-        logError("Closing: %s", ERS[e]);
-    del_memory();
-    exit(e);
+void todo(const char* const message) {
+    logError("%s", message);
+    fail(SIGNAL_TO_DO);
 }
 
-Box err(int e) {
-    return box(ERR, e);
+void fail(Signal signal) {
+    logError("Failing with signal %2d: %s", signal, printableSignals[signal]);
+    // Clean all allocated memory
+    del_memory();
+    exit(signal);
+}
+
+char* strSignal(Signal signal) {
+    return printableSignals[signal];
 }
