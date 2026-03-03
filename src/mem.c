@@ -4,11 +4,12 @@
  */
 
 #include "mem.h"
-#include "heap.h"
-#include "reader.h"
+#include "parser.h"
 #include "stack.h"
+#include "heap.h"
 #include "log.h"
-#include "errors.h"
+
+#include <stdlib.h>
 
 #define DEFAULT_HEAP_MAX_LEN      2048
 #define DEFAULT_TOKENBUF_MAX_LEN  2048
@@ -20,15 +21,15 @@ const unsigned int STACK_MAX_LEN = DEFAULT_STACK_MAX_LEN;
 
 int init_memory() {
     logDebug("Creating memory...");
-    return init_heap(HEAP_MAX_LEN)
+    return createHeap(HEAP_MAX_LEN)
         && init_stack(STACK_MAX_LEN)
-        && init_reader(TOKENBUF_MAX_LEN);
+        && createParser(TOKENBUF_MAX_LEN);
 }
 
 void del_memory() {
-    del_heap();
+    destroyHeap();
     del_stack();
-    del_reader();
+    destroyParser();
 }
 
 /**
@@ -39,7 +40,7 @@ void* halloc(unsigned int size) {
     if(ret) {
         logAlloc("malloc: allocated %d bytes at %p", size, ret);
     } else {
-        logError("Malloc fail");
+        logError("malloc: fail");
     }
-    return NULL;
+    return ret;
 }

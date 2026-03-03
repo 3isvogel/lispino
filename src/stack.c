@@ -1,80 +1,144 @@
+#include "box.h"
 #include "log.h"
 #include "stack.h"
 #include "heap.h"
 #include "prims.h"
 #include "errors.h"
+#include "signals.h"
 #include <string.h>
+#include <stdlib.h>
 
-Cell_t* stack;
-Cell_t ptr;
+typedef struct {
+    Cons* data;
+    unsigned int head;
+    unsigned int size;
+    unsigned int base;
+} Stack;
+Stack stack = (Stack) {
+    .data = NULL,
+    .head = 0,
+    .size = 0,
+};
 
-Cell_t* init_stack(unsigned int size) {
-    stack = (Cell_t*)malloc(sizeof(Cell_t) * size);
-    ptr = (Cell_t){.base = stack, .stack = stack};
-    logAlloc("Allocating stack at %p (%p, %p)", stack, ptr.base, ptr.stack);
-    return stack;
-}
-void del_stack() { free(stack); }
+typedef struct {
+    unsigned int start, end;
+}Frame;
 
-static inline int avail() {return &stack[STACK_MAX_LEN] - ptr.stack; }
+Cons* createStack(unsigned int size);
 
-static inline void d(char* f, Cell_t cell) {
-    static int h = 0;
-    if(!h) {logDebug("%-10s  %11s  %18s  %7s  %7s  %5s == Stack", "function", "cell_car", "cell_cdr", "bp", "sp", "free"); h=1;}
-    logDebug("%-10s  %11p  %18p  %7x  %7x  %5d", f, cell.car, cell.cdr, ptr.base, ptr.stack, avail());
-}
-
-void* stack_push(Cell_t cell) {
-    if (!avail()) fail(OUT_OF_STACK);//return NULL;
-    *(ptr.stack) = cell;
-    ptr.stack ++;
-    d((char*)__FUNCTION__, cell);
-    return stack;
-}
-
-void* stack_pop(Cell cell) {
-    if(ptr.stack == stack) return NULL;
-    ptr.stack--;
-    *cell = *(ptr.stack);
-    d((char*)__FUNCTION__, *cell);
-    return stack;
+/**
+ * @brief Deallocate the stack if it exists
+ */
+void destroyStack() {
+    if(stack.data != NULL) {
+        free(stack.data);
+    }
+    stack.data = NULL;
+    stack.head = 0;
+    stack.size = 0;
+    stack.base = 0;
 }
 
-void* frame_new() {
-    logDebug("frame_new");
-    stack_push(ptr);
-    ptr.base = ptr.stack;
-    return stack;
+/**
+ * @brief Allocate a new stack
+ *
+ * @param size 
+ * @return A pointer to cons, indicating if the operation was successful or not
+ */
+Cons* createStack(unsigned int size) {
+    // Check that no stack already exists, if it does delete it
+    destroyStack();
+    // Allocate a continuous block of Cons, will be used to store the symbol name
+    // and value in a single cons
+    // car -> name, cdr -> value
+    stack.data = (Cons*) halloc(size * sizeof(Cons));
+    return stack.data;
 }
 
-void* frame_del() {
-    ptr.stack = ptr.base;
-    logDebug("frame_del");
-    if(!stack_pop(&ptr)) return NULL;
-    // if(ptr.base == stack) gc(NULL,0);
-    return stack;
+/**
+ * @brief Push a symbol on top of the symbol stack
+ *
+ * @param symbol 
+ */
+void symbolPush(Cons* symbol) {
+    if(stack.head == stack.size) {
+        fail(SIGNAL_STACK_FULL);
+    }
+    stack.data[stack.head ++ ] = *symbol;
 }
 
-void frame_rst() {
-    ptr.stack = ptr.base;
-    logDebug("frame_rst");
+// This is necessary when implementing functions, so I don't have to retain the
+// number of pushed symbols somewhere
+
+/**
+ * @brief Create a new frame in the symbol stack
+ */
+void framePush() {
+    Cons cons = (Cons) {
+        // FIXME: flag it in such a way that when searching for symbols I will
+        //       not follow this;
+        .car = box(0, TAG_NIL),
+        // Actual value is in the CDR !!
+        .cdr = box(stack.base, TAG_INT),
+    };
+    symbolPush(&cons);
+    stack.base = stack.head;
 }
 
-Cell_t stack_env = {.base = 0, .stack = 0};
-
-Cell get_env() {
-    stack_env.base  = ptr.base;
-    stack_env.stack = ptr.stack;
-    return &stack_env;
+/**
+ * @brief Reset the last frame of the symbol stack
+ *
+ * This function should operate the same as a subsequent call of
+ * framePop(); framePush(); but I might optimize it
+ */
+void frameRst() {
+    stack.head = stack.base;
 }
 
-Cell outer_env() {
-    if(stack_env.base == stack) return NULL;
-    stack_env = *(--stack_env.base);
-    return &stack_env;
+/**
+ * @brief Delete the last frame from the symbol stack
+ */
+void framePop() {
+    frameRst();
+    // Prevents going backward in the stack
+    if(stack.base == 0) return;
+    Cons cons = stack.data[--stack.head];
+    // Actual value is in the CDR !!
+    stack.base = getValue(&(cons.cdr));
 }
 
-#include "printer.h"
+// TODO: Do I really need this
+
+/**
+ * @brief Return the indexes of the current frame
+ *
+ * @return 
+ */
+Frame frameCurrent() {
+    return (Frame) {
+        .start = stack.base,
+        .end = stack.head,
+    };
+}
+
+/**
+ * @brief Modify in place the parameter frame if an outer frame exists
+ *
+ * An outer frame is simply the one before in the stack
+ *
+ * @param frame 
+ * @return NULL if there is no outer frame
+ */
+int* frameOuter(Frame* frame) {
+    if (frame->start == 0)
+        return NULL;
+    unsigned int tEnd   = stack.base - 1,
+                 tStart = getValue(&(stack.data[tEnd].cdr));
+    // Modify frame in place
+    frame->start = tStart;
+    frame->end = tEnd;
+    return (int*)1;
+}
 
 Box define_sym(Cell name, Box def) {
     // TODO: search if definition already exists in current stack
