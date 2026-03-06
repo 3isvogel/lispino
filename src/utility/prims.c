@@ -1,8 +1,9 @@
-#include "heap.h"
-#include "errors.h"
 #include "log.h"
+#include "utility/signals.h"
 #include "prims.h"
-#include "stack.h"
+#include <memory/stack.h>
+#include <memory/heap.h>
+#include <utility/box.h>
 #include <string.h>
 
 // Can assume that a is always a CONS
@@ -98,29 +99,67 @@ Box f_div(Box b) {
     return tot;
 }
 
-#include "printer.h"
-
-Box ret_car(Box b) {
-    Cell a = CELL(b);
-    switch(get_tag(a->car)) {
-        case ERR: return a->car;
-        case CON:
-        case CLO: 
-            return (*(Cell)get_val(a->car)).car;
+/**
+ * @brief Treats box as a Cons reference and return its car
+ *
+ * Used by basically all primitives to extract arguments, prevents dereferencing
+ * a value that is not a cons
+ *
+ * @param box 
+ * @return 
+ */
+Box getConsCar(Box* box) {
+    // Ensures that a function is called on a cons "(+ . (1 . nil))" and prevents
+    // calling on other types "(f . 1)" argument is not a cons
+    if (getTag(box) != TAG_CONS) {
+        // If argument is not a cons do not dereference it and return an error
+        return box(TAG_SIGNAL, SIGNAL_WRONG_TYPE);
     }
-    return box(ERR, WRONG_TYPE);
-};
+    // If the argument is indeed a cons, follow its car
+    return ((Cons*)getValue(box))->car;
+}
 
-Box ret_cdr(Box b) {
-    Cell a = CELL(b);
-    switch(get_tag(a->car)) {
-        case ERR: return a->car;
-        case CON:
-        case CLO: 
-            return (*(Cell)get_val(a->car)).cdr;
+/**
+ * @brief Returns the car of a list
+ *
+ * @param box 
+ * @return the car of a list
+ */
+Box primitiveCar(Box* arg) {
+    Box list = getConsCar(arg);
+    switch (getTag(&list)) {
+        // Bubble up signal
+    case TAG_SIGNAL: return list;
+    case TAG_CONS:
+    case TAG_CLOSURE:
+        // If the type is a closure or a cons return the car
+        return ((Cons*)getValue(list))->car;
+    default:
+        // Otherwise signal error
+        return box(TAG_SIG, SIGNAL_WRONG_TYPE);
     }
-    return box(ERR, WRONG_TYPE);
-};
+}
+
+/**
+ * @brief Returns the car of a list
+ *
+ * @param box 
+ * @return the car of a list
+ */
+Box primitiveCdr(Box* arg) {
+    Box list = getConsCar(arg);
+    switch (getTag(list)) {
+        // Bubble up signal
+    case TAG_SIGNAL: return list;
+    case TAG_CONS:
+    case TAG_CLOSURE:
+        // If the type is a closure or a cons return the car
+        return ((Cons*)getValue(list))->cdr;
+    default:
+        // Otherwise signal error
+        return box(TAG_SIG, SIGNAL_WRONG_TYPE);
+    }
+}
 
 Box const_cons(Box b) {
     if(get_tag(b) != CON) return box(ERR, WRONG_ARGS_NUMBER);
@@ -173,14 +212,34 @@ Box atom_eq(Box b) {
     return nil;
 }
 
+/**
+ * @brief Return the primitive type as an integer 
+ *
+ * @param arg 
+ * @return 
+ */
+Box primitiveGetType(Box* arg) {
+    // Try to extract the argument
+    Box follow = getConsCar(arg);
+
+    // If some error occurred bubble up
+    if (getTag(&follow) == TAG_SIGNAL) {
+        return follow;
+    }
+
+    // Otherwise return the signal as an argument
+    return box(TAG_INT, getTag(&follow));
+}
+
 Box atom_type(Box arg) {
     if (get_tag(arg) != CON)
         return box(ERR, WRONG_ARGUMENTS);
     return box(INT, get_tag(CELL(arg)->car));
 }
 
-#define X(a,b) {(Cell)"\xff\xff" #a, b},
-Prim prim_env[PRIMITIVE_INDEX_MAX] = {
+// Initialize vector with "primitive_name" -> Box(*procedure)(Box*)
+#define X(a,b) {(PrimitiveInit) #a, b}
+Prim prim_env[PRIMITIVE_SIZE] = {
     PRIMITIVE_LIST
 };
 #undef X

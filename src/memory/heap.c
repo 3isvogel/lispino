@@ -1,11 +1,12 @@
 #include "heap.h"
-#include "log.h"
+#include "memory/mem.h"
 #include "string.h"
-#include "signals.h"
+#include <utility/signals.h>
+#include <utility/log.h>
 
 #include <stdlib.h>
 
-#define HEAP_TRESHOLD_GC 0x10000
+#define HEAP_TRESHOLD_GC 0x4000
 
 typedef struct {
     Box* active;
@@ -23,6 +24,17 @@ Heap heap = (Heap) {
     .requested = 0,
 };
 
+typedef struct {
+    Box*** data;
+    unsigned int size;
+    unsigned int head;
+} Registry;
+Registry registry = (Registry) {
+    .data = NULL,
+    .size = 0,
+    .head = 0,
+};
+
 /**
  * @brief Deallocate the heap if it exists
  */
@@ -33,7 +45,8 @@ void destroyHeap() {
     } else {
         free(heap.inactive);
     }
-    // If they are equals no memory was allocated (These two memory areas cannot overlap)
+    // If they are equals no memory was allocated (These two memory areas cannot
+    // overlap)
     heap.active = NULL;
     heap.inactive = NULL;
     heap.head = 0;
@@ -126,7 +139,8 @@ void gc() {
     // after this i know where is stack base and stack top
 
     // Sadly C won't let me do bitwise unless I am veeeeeery verbose
-    // Use swap active and inactive pointer, consider an empty heap and start filling it
+    // Use swap active and inactive pointer, consider an empty heap and start
+    // filling it
 
     Box* t = heap.active;
     heap.active = heap.inactive;
@@ -223,7 +237,8 @@ Cons* moveCons(Cons* cons) {
  */
 
 /**
- * @brief Copy string to the new heap buffer, flagging the previous value as moved
+ * @brief Copy string to the new heap buffer, flagging the previous value as
+ * moved
  *
  * @param string 
  * @return 
@@ -232,7 +247,8 @@ Box* moveString(Box* string) {
     unsigned long long int len = getValue(string);
     // Request a new memory area that is big enough to fit a string type
     // (Box metadata + raw string) + '\0'
-    Box* newString = (Box*) memcpy(internalMemRequest(sizeof(Box) + len + 1), string, sizeof(Box) + len + 1);
+    Box* newString = (Box*) memcpy(internalMemRequest(sizeof(Box) + len + 1),
+                                   string, sizeof(Box) + len + 1);
     *string = box((Value)newString, TAG_MOVED);
     return newString;
 }
@@ -283,3 +299,40 @@ void moveBox(Box* box) {
     // For all atomic values there is no need to copy them, they reside
     // in the cons itself and will be copied
 }
+
+/**
+ * @brief Destroy pointer registry if it exitss
+ */
+void destroyPointerRegistry() {
+    if (registry.data != NULL)
+        free(registry.data);
+    registry.data = NULL;
+}
+
+/**
+ * @brief Allocate a new pointer regitsry
+ *
+ * @param size 
+ */
+unsigned int createPointerRegistry(unsigned int size) {
+    destroyPointerRegistry();
+
+    registry.data = (Box***) halloc(size * sizeof(Box**));
+    return 1;
+}
+
+/**
+ * @brief Register a box pointer to the registry
+ *
+ * @param boxPtr
+ */
+void pointerRegistryPush(Box** boxPtr) {
+    if (registry.head == registry.size)
+        fail(SIGNAL_POINTER_REGISTRY_FULL);
+    registry.data[registry.head ++ ] = boxPtr;
+}
+
+/**
+ * @brief pop the last pointer in the registry
+ */
+void pointerRegistryPop();

@@ -1,7 +1,7 @@
 #ifndef EVAL_H
 #define EVAL_H
 
-#include "types.h"
+#include <utility/box.h>
 
 Box Eval(Box ast);
 
