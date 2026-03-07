@@ -40,6 +40,7 @@ int createMemory() {
  * @brief Destroy memory data structures
  */
 void destroyMemory() {
+    logAlloc("DELETING MEMORY...");
     destroyHeap();
     destroyPointerRegistry();
     destroyStack();

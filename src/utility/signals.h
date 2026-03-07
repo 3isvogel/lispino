@@ -15,7 +15,6 @@ X(UNKNOWN_FAILURE, "")      \
 X(MEM_SETUP_FAIL, "")       \
 X(EOF_REACHED, "")          \
 X(OUT_OF_MEMORY, "")        \
-X(UNBALANCED, "")           \
 X(UNTERMINATED_STR, "")     \
 X(SYMBOL_NOT_DEFINED, "")   \
 X(UNEXPECTED_BRANCH, "")    \
@@ -33,6 +32,9 @@ X(TOKEN_BUFFER_FULL, "")    \
 X(HEAP_FULL, "")            \
 X(STACK_FULL, "")           \
 X(POINTER_REGISTRY_FULL, "")\
+X(SYNTAX_ERROR, "")         \
+X(BAD_REFERENCE, "")        \
+X(FAIL_RAWMEMORY_CHECK, "") \
 X(TO_DO, "")
     
 #define X(x,s) SIGNAL_##x,

@@ -1,12 +1,15 @@
+#include <utility/signals.h>
+#include <utility/log.h>
+
+#include <memory/mem.h>
+#include <memory/stack.h>
+#include <memory/heap.h>
+
+#include <system/parser.h>
+// #include <system/eval.h>
+// #include <system/printer.h>
+
 #include <stdio.h>
-#include "stack.h"
-#include "reader.h"
-#include "eval.h"
-#include "printer.h"
-#include "errors.h"
-#include "heap.h"
-#include "log.h"
-#include "mem.h"
 
 // FIXME: problems with GC, it changes address of everything, so either
 // - add ANOTHER stack in which to store vars in boxed form and update pointers
@@ -29,47 +32,43 @@ void printsize() {
     int tokenBufferSize,
         stackSize,
         heapSize,
-        d,
-        e,
+        pointerRegistrySize,
         totalSize;
-    tokenBufferSize = (TOKENBUF_MAX_LEN+1) * sizeof(char);
-    stackSize = (STACK_MAX_LEN) * sizeof(int);
-    heapSize = (HEAP_MAX_LEN) * sizeof(int);
+    tokenBufferSize = (TOKEN_BUFFER_MAX_LEN+1) * sizeof(char);
+    stackSize = (STACK_MAX_LEN) * sizeof(Cons);
+    heapSize = (HEAP_MAX_LEN) * sizeof(Box);
+    pointerRegistrySize = (POINTER_REGISTRY_MAX_LEN) * sizeof(Box*);
+
     // Using two heaps: copy GC
-    totalSize = tokenBufferSize + stackSize + heapSize * 2;
+    totalSize = tokenBufferSize + stackSize + heapSize * 2 + pointerRegistrySize;
 
-    logInfo("Memory       \tsize\tsize");
-    logInfo("Token buffer:\t%d\t(%dK)", tokenBufferSize, tokenBufferSize/K);
-    logInfo("Symbols stack:\t%d\t(%dK)", stackSize, stackSize/K); 
-    logInfo("Heaps:      \t%d\t(%dK) x 2", heapSize, heapSize/K); 
-    logInfo("Total:      \t%d\t(%dK)", totalSize, totalSize/K);
+    logInfo("Memory         size size");
+    logInfo("Token buffer:  %5d (%4K)", tokenBufferSize, tokenBufferSize/K);
+    logInfo("Symbols stack: %5d (%4K)", stackSize, stackSize/K); 
+    logInfo("Heaps:         %5d (%4K) x 2", heapSize, heapSize/K); 
+    logInfo("Symbols stack: %5d (%4K)", pointerRegistrySize, pointerRegistrySize/K); 
+    logInfo("Total:         %5d (%4K)", totalSize, totalSize/K);
 }
-
-#define DEFAULT_LOG_LEVEL LOG_LEVEL_ALLOC
 
 int main(int argc, char** argv) {
 
-    if (argc > 1) {
-        logSetLevel(atoi(argv[1]));
-    } else {
-        logSetLevel(DEFAULT_LOG_LEVEL);
-    }
+    logSetLevel(LOG_LEVEL_ALLOC);
 
-    if (init_memory() == 0) {
-        fail(MEM_SETUP_FAIL);
+    if (createMemory() == 0) {
+        fail(SIGNAL_MEM_SETUP_FAIL);
     }
-    if(!env_init()) fail(ENV_INIT_FAIL);
+    // if(!env_init()) fail(ENV_INIT_FAIL);
 
     logDebug("HEAP%12s [TYPE] | %12s [TYPE]", "car_value", "cdr_value");
 
     while(1) {
-        printf("%d > ", heap_avail());
+        printf("%d > ", heapAvailableSize());
         // flush for when using pipes 
         fflush(stdout);
         // Read 1 vaild s-expr
         Box ret = Read();
-        ret = Eval(ret);
-        logDebug("result: %12x [%s]", get_val(ret), type_name[get_tag(ret)]);
-        Print(ret);
+        // ret = Eval(ret);
+        // logDebug("result: %12x [%s]", get_val(ret), type_name[get_tag(ret)]);
+        // Print(ret);
     }
 }

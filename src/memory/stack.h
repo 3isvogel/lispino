@@ -3,6 +3,11 @@
 #include <utility/box.h>
 #include <utility/signals.h>
 
+// Accessory struct to keep the sate of current frame
+typedef struct {
+    Cons *start, *end;
+} Frame;
+
 /**
  * @brief Deallocate the stack if it exists
  */
@@ -44,14 +49,14 @@ void framePop();
  * @param definition 
  * @return 
  */
-Box* defineSymbol(Box* name, Box* definition);
+Box defineSymbol(Box name, Box definition);
 
 /**
  * @brief Returns the value of a symbol
  *
  * @return the value of the symbol
  */
-Box getSymbol(Box* name);
+Box getSymbol(Box name);
 
 /**
  * @brief Initialize the environment with the primitives

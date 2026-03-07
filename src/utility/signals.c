@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include "signals.h"
 #include "log.h"
+#include "utility/box.h"
 #include <memory/mem.h>
 
 #define X(x,s) #x,
@@ -19,6 +20,10 @@ void fail(Signal signal) {
     // Clean all allocated memory
     destroyMemory();
     exit(signal);
+}
+
+Box boxSignal(Signal signal) {
+    return setBox((Value)signal, TAG_SIGNAL);
 }
 
 char* strSignal(Signal signal) {

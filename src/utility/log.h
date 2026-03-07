@@ -1,5 +1,3 @@
-#include "macros.h"
-
 #pragma once
 // C++ code guard
 #ifdef __cplusplus

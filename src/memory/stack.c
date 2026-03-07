@@ -1,33 +1,19 @@
 #include <utility/box.h>
 #include <utility/log.h>
-#include "stack.h"
-#include "prims.h"
-#include "errors.h"
-#include "signals.h"
-#include <string.h>
-#include <stdlib.h>
+#include <utility/signals.h>
 
-typedef struct {
-    Cons* data;
-    unsigned int head;
-    unsigned int size;
-    unsigned int base;
-} Stack;
+#include "private.h"
+#include "stack.h"
+#include <memory/mem.h>
+
+#include <string.h>
+
 Stack stack = (Stack) {
     .data = NULL,
     .head = 0,
     .size = 0,
 };
 
-typedef struct {
-    unsigned int start, end;
-}Frame;
-
-Cons* createStack(unsigned int size);
-
-/**
- * @brief Deallocate the stack if it exists
- */
 void destroyStack() {
     if(stack.data != NULL) {
         free(stack.data);
@@ -38,19 +24,13 @@ void destroyStack() {
     stack.base = 0;
 }
 
-/**
- * @brief Allocate a new stack
- *
- * @param size 
- * @return A pointer to cons, indicating if the operation was successful or not
- */
 Cons* createStack(unsigned int size) {
     // Check that no stack already exists, if it does delete it
     destroyStack();
     // Allocate a continuous block of Cons, will be used to store the symbol name
     // and value in a single cons
     // car -> name, cdr -> value
-    stack.data = (Cons*) halloc(size * sizeof(Cons));
+    stack.data = (Cons*) halloc(sizeof(Cons) * size);
     return stack.data;
 }
 
@@ -61,42 +41,30 @@ Cons* createStack(unsigned int size) {
  * @param name 
  * @param definition 
  */
-void symbolPush(Box* name, Box* definition) {
+void symbolPush(Box name, Box definition) {
     if(stack.head == stack.size) {
         fail(SIGNAL_STACK_FULL);
     }
     stack.data[stack.head ++ ] = (Cons) {
-        .car = *name,
-        .cdr = *definition,
+        .car = name,
+        .cdr = definition,
     };
 }
 
 // This is necessary when implementing functions, so I don't have to retain the
 // number of pushed symbols somewhere
 
-/**
- * @brief Create a new frame in the symbol stack
- */
 void framePush() {
-    Box name = box(0, TAG_NIL),
-        definition = box(stack.base, TAG_INT);
-    symbolPush(&name, &definition);
+    Box name = setBox(0, TAG_NIL),
+        definition = setBox(stack.base, TAG_INT);
+    symbolPush(name, definition);
     stack.base = stack.head;
 }
 
-/**
- * @brief Reset the last frame of the symbol stack
- *
- * This function should operate the same as a subsequent call of
- * framePop(); framePush(); but I might optimize it
- */
 void frameRst() {
     stack.head = stack.base;
 }
 
-/**
- * @brief Delete the last frame from the symbol stack
- */
 void framePop() {
     frameRst();
     // Prevents going backward in the stack
@@ -106,61 +74,33 @@ void framePop() {
     stack.base = getValue(&(cons.cdr));
 }
 
-// TODO: Do I really need this
-
-/**
- * @brief Return the indexes of the current frame
- *
- * @return 
- */
 Frame frameCurrent() {
     return (Frame) {
-        .start = stack.base,
-        .end = stack.head,
+        .start = &stack.data[stack.base],
+        .end = &stack.data[stack.head],
     };
 }
 
-/**
- * @brief Modify in place the parameter frame if an outer frame exists
- *
- * An outer frame is simply the one before in the stack
- *
- * @param frame 
- * @return NULL if there is no outer frame
- */
 int frameOuter(Frame* frame) {
-    if (frame->start == 0)
+    if (frame->start == stack.data)
         return 0;
-    unsigned int tEnd   = stack.base - 1,
-                 tStart = getValue(&(stack.data[tEnd].cdr));
-    // Modify frame in place
-    frame->start = tStart;
-    frame->end = tEnd;
+    // Modify frame 
+    frame->end = frame->start - 1;
+    frame->start = (Cons*)getValue(&(frame->end->cdr));
     return 1;
 }
 
-/**
- * @brief Define symbol in the current stack frame
- *
- * If symbol does not exists in the current frame create it, otherwise update 
- * the definition
- *
- * @param name 
- * @param definition 
- * @return 
- */
-Box* defineSymbol(Box* name, Box* definition) {
+Box defineSymbol(Box name, Box definition) {
     // TODO: consider if using the length value for string operations or just
     //       exploit the null-termination
 
     // TODO: consider removing this check
-    if (getTag(name) != TAG_RAW) {
-        logError("Trying to dereference a non-raw");
-        fail(SIGNAL_WRONG_TYPE);
+    if (getTag(&name) != TAG_SYMBOL) {
+        return boxSignal(SIGNAL_WRONG_TYPE);
     }
 
     // If a string is saved as X.AAA.ssss... just move to the next Box pointer
-    char* rawName = (char*)(name + 1);
+    char* rawName = (char*)(((BoxRef)getValue(&name)) + 1);
 
     for (unsigned int index = stack.base; index < stack.head; index ++) {
 
@@ -173,7 +113,7 @@ Box* defineSymbol(Box* name, Box* definition) {
         if(strcmp(rawName, currentName) == 0) {
             // Definition lives in the system memory already, simply update it,
             // losing old reference
-            stack.data[index].cdr = *definition;
+            stack.data[index].cdr = definition;
             return definition;
         }
     }
@@ -184,37 +124,30 @@ Box* defineSymbol(Box* name, Box* definition) {
     return definition;
 }
 
-/**
- * @brief Returns the value of a symbol
- *
- * @return the value of the symbol
- */
-Box getSymbol(Box* name) {
+Box getSymbol(Box name) {
 
     // TODO: consider removing this check
-    if (getTag(name) != TAG_RAW) {
-        logError("Trying to dereference a non-raw");
+    if (getTag(&name) != TAG_SYMBOL) {
         return boxSignal(SIGNAL_WRONG_TYPE);
     }
-
     // If a string is saved as X.AAA.ssss... just move to the next Box pointer
-    char* rawName = (char*)(name + 1);
+    char* rawName = (char*)(((BoxRef)getValue(&name)) + 1);
 
     // Search from the inner to the outer frame, until found or last frame is
     // reached
     Frame frame = frameCurrent();
     do {        
-        for (unsigned int index = frame.start; index < frame.end; index ++) {
+        for (Cons* cons = frame.start; cons < frame.end; cons ++) {
     
             // Extract raw string, no need to check the type of this as I made it
             // impossible before to add any non-string symbol, if all additions are
             // done through this function there will never be non-string symbols
-            char* currentName = ((char*)getValue(&(stack.data[index].car)))
+            char* currentName = ((char*)getValue(&(cons->car)))
                                 + sizeof(Box);
     
             // Really slow symbol search
             if(strcmp(rawName, currentName) == 0) {
-                return stack.data[index].cdr;
+                return cons->cdr;
             }
         }
     } while(frameOuter(&frame));
@@ -231,11 +164,11 @@ void initializeEnv() {
     // }
 }
 
-void* env_init() {
-    logInfo("Initialize env");
-    for(Prim *p = prim_env; p < &prim_env[PRIMITIVE_INDEX_MAX]; p++) {
-        if(!define_sym(p->name, box(PRI, LONG(p->procedure))))
-            return NULL;
-    }
-    return prim_env;
-}
+// void* env_init() {
+//     logInfo("Initialize env");
+//     for(Prim *p = prim_env; p < &prim_env[PRIMITIVE_INDEX_MAX]; p++) {
+//         if(!define_sym(p->name, box(PRI, LONG(p->procedure))))
+//             return NULL;
+//     }
+//     return prim_env;
+// }

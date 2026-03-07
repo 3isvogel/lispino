@@ -1,6 +1,15 @@
+/**
+ * @file
+ * @brief Parser and lexer implementation
+ */
+
+#include "utility/log.h"
 #include <utility/signals.h>
+#include <utility/box.h>
+
 #include <memory/mem.h>
-#include "box.h"
+#include <memory/heap.h>
+
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -41,7 +50,8 @@ void destroyParser() {
  * @brief Allocate memory for the parser
  *
  * @param maximumTokenSize 
- * @return pointer to allocated buffer, used by memory management to free it later
+ * @return pointer to allocated buffer, used by memory management to free it
+ * later
  */
 char* createParser(unsigned int bufferSize) {
     if (token.text != NULL) destroyParser();
@@ -66,6 +76,7 @@ char* createParser(unsigned int bufferSize) {
  */
 void putch(char character) {
     if (token.len == token.bufferSize) {
+        logError("Token: %.*s", token.len, token.text);
         fail(SIGNAL_TOKEN_BUFFER_FULL);
     }
     token.text[token.len ++ ] = character;
@@ -92,13 +103,15 @@ void next() {
             // TODO: actually handle this
             fail(SIGNAL_EOF_REACHED);
     
-        // Special characters, used as abbreviations for longer forms, returns just a single character
+        // TODO: handle special characters, used as abbreviations for longer
+        // forms, returns
+        // just a single character
         } else if (cc == '(') {
             token.type = TTYPE_LPAR;
-            return;
+            break;
         } else if (cc == ')') {
             token.type = TTYPE_RPAR;
-            return;
+            break;
         //} else if (cc == '.') {
         //    token.type = TTYPE_DOT;
         //    return;
@@ -114,12 +127,16 @@ void next() {
         } else if (cc >= '*' && cc <= '~') {
             do {
                 putch(cc);
+                cc = getchar();
             } while(cc >= '*' && cc <= '~');
+            token.text[token.len ++ ] = '\0';
             token.type = TTYPE_SYMBOL;
-            return;
+            break;
         } else if (cc >= '!' && cc <= '\'') {
             todo("Implement special characters");
         }
+
+    logDebug("Got token: %s", token.text);
 
     } while(1);
 }
@@ -142,94 +159,80 @@ void next() {
 // if (get() != '"')
 //     fail(UNTERMINATED_STR);
 
-Box* Read() {
-    
+// LISP simplified BNF
+//
+// S -> A | (L)                 <-- readForm
+// L -> \epsilon | SL           <-- readList
+
+Box readForm();
+Box readList();
+
+Box readForm() {
+    // Consume next token
+    next();
+
+    // Save in pointer registry for automatic update on GC
+    Box box;
+    BoxRef rawRef;
+    pointerRegistryPush(&box);
+
+    switch(token.type) {
+    case TTYPE_LPAR:
+        // call readList
+        box = readList();
+        break;
+    case TTYPE_RPAR:
+    case TTYPE_DOT:
+        // A form is either an atomic type or the beginning of a list
+        box = boxSignal(SIGNAL_SYNTAX_ERROR);
+        break;
+    // read atomic
+    case TTYPE_SYMBOL:
+        // Request new memory and fill with value
+        rawRef = newRaw(token.len);
+        box = setRaw(rawRef, token.text);
+        // If value does not fit: return the boxed signal
+        if (getValue(&box) == TAG_SIGNAL)
+            break;
+        // Else the value is successfully inserted into the heap
+        setTag(&box, TAG_SYMBOL);
+        setValue(&box, (Value)rawRef);
+    default:
+        todo("Support all symbols");
+    }
+
+    pointerRegistryPop();
+    return box;
 }
 
-#define cons_debug(name)\
-logDebug("  %12lx [%s]  | %12lx [%s]", get_val(name->car), type_name[get_tag(name->car)], get_val(name->cdr), type_name[get_tag(name->cdr)])
+Box readList() {
 
-Box read_list() {
-    get_token();
-    if (CH0 == ')') {
-        return box(NIL, 1);
-    }
-    Cell head = get_mem(sizeof(Cell_t));
-    head->car = read_form();
-    get_token();
+    // Consume next token
+    next();
 
-    Cell cons = head;
-    while (CH0 != ')' && !(CH0 == '.' && token_len == 1)) {
-        Cell t = (Cell)get_mem(sizeof(Cell_t));
-        cons->cdr = box(CON, LONG(t));
-        cons_debug(cons);
-        cons = (Cell)get_val(cons->cdr);
-        cons->car = read_form();
-        get_token();
-    }
-    if(CH0 == '.' && token_len == 1) {
-        get_token();
-        cons->cdr = read_form();
-        get_token();
+    Box car, cdr, box;
+    pointerRegistryPush(&box);
+    pointerRegistryPush(&car);
+    pointerRegistryPush(&cdr);
+
+    if (token.type == TTYPE_RPAR) {
+        car = setBox(0, TAG_NIL);
     } else {
-        cons->cdr = nil;
+        car = readForm();
+        cdr = readList();
     }
-    if(CH0 != ')') return box(ERR, UNBALANCED);
-    cons_debug(cons);
-    return box(CON, LONG(head));
+
+    Cons* consRef = newCons();
+    consRef->car = car;
+    consRef->cdr = cdr;
+    box = setBox((Value) consRef, TAG_CONS);
+
+    pointerRegistryPop();
+    pointerRegistryPop();
+    pointerRegistryPop();
+    return box;
 }
 
-int numsym() {
-    int i = 0;
-    int floaty = 0;
-    if (token_buffer[i] == '+' || token_buffer[i] == '-') {
-        if(token_len == 1) return 0;
-        i = 1;
-    }
-    for (; i < token_len; i++) {
-        if (token_buffer[i] < '0' || token_buffer[i] > '9') {
-            if ((!floaty) && token_buffer[i] == '.')
-                floaty = 1;
-            else
-                return 0;
-        }
-    }
-    return 1 + floaty;
-}
-
-enum { numSym_sym, numSym_int, numSym_double };
-
-Box quote_exp() {
-    Cell quote = get_mem(sizeof(Cell_t)),
-         args  = get_mem(sizeof(Cell_t));
-    quote->car = box(SYM, (long)memcpy((char*)raw_mem(6) + 2, "quote", 6) - 2);
-    quote->cdr = box(CON, (long)args);
-    args->cdr = box(NIL, 0);
-    get_token();
-    args->car = read_form();
-    return box(CON, (long)quote);
-}
-
-Box read_atom() {
-    if (!strncmp(token_buffer, "nil", TOKENBUF_MAX_LEN)) {
-        return nil;
-    }
-
-    switch (CH0) {
-    case '\'':
-        return quote_exp();
-    case ':':
-        return box(LAB, (long)memcpy(((char*)raw_mem(token_len + 1)) + 2, (Cell)token_buffer, token_len + 1) - 2);
-    case '"':
-        return box(STR, (long)memcpy(((char*)raw_mem(token_len) + 2), (Cell)&token_buffer[1], token_len) - 2);
-    }
-    switch (numsym()) {
-    case numSym_sym:
-        return box(SYM, (long)memcpy(((char*)raw_mem(token_len + 1) + 2), (Cell)token_buffer, token_len + 1) - 2);
-    case numSym_int:
-        return box(INT, (long)atoi(token_buffer));
-    case numSym_double:
-        return strtod(token_buffer, NULL);
-    }
-    return fail(0);
+Box Read() {
+    return readForm();
 }
