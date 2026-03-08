@@ -27,5 +27,6 @@ Box boxSignal(Signal signal) {
 }
 
 char* strSignal(Signal signal) {
+    // TODO: check boundaries?
     return printableSignals[signal];
 }

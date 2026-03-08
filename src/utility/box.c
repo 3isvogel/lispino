@@ -28,3 +28,8 @@ Box setBox(Value value, Tag tag) {
         .tag = tag,
     };
 }
+
+char* strTag(Tag tag) {
+    // TODO: check boundaries?
+    return printableTag[tag];
+}

@@ -13,10 +13,10 @@
 
 #include <stdlib.h>
 
-#define DEFAULT_HEAP_MAX_LEN                2048
-#define DEFAULT_POINTER_REGISTRY_MAX_LEN    2048
-#define DEFAULT_TOKEN_BUFFER_MAX_LEN        2048
-#define DEFAULT_STACK_MAX_LEN               512
+#define DEFAULT_HEAP_MAX_LEN                128
+#define DEFAULT_POINTER_REGISTRY_MAX_LEN    128
+#define DEFAULT_TOKEN_BUFFER_MAX_LEN        128
+#define DEFAULT_STACK_MAX_LEN               128
 
 const unsigned int HEAP_MAX_LEN = DEFAULT_HEAP_MAX_LEN;
 const unsigned int POINTER_REGISTRY_MAX_LEN = DEFAULT_POINTER_REGISTRY_MAX_LEN;

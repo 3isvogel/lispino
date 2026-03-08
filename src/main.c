@@ -7,7 +7,7 @@
 
 #include <system/parser.h>
 // #include <system/eval.h>
-// #include <system/printer.h>
+#include <system/printer.h>
 
 #include <stdio.h>
 
@@ -69,6 +69,6 @@ int main(int argc, char** argv) {
         Box ret = Read();
         // ret = Eval(ret);
         // logDebug("result: %12x [%s]", get_val(ret), type_name[get_tag(ret)]);
-        // Print(ret);
+        Print(ret);
     }
 }

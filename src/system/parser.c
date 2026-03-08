@@ -33,14 +33,14 @@ typedef enum {
 
 typedef long long int TokenValue;
 
-typedef struct TokenBuffer_s {
+typedef struct {
     char*           text;
     unsigned int    len;
     TokenType       type;
     TokenValue      value;
     unsigned int    bufferSize;
-} TokenBuffer;
-TokenBuffer token;
+} Token;
+Token token;
 
 void destroyParser() {
     free(token.text);
@@ -58,7 +58,7 @@ char* createParser(unsigned int bufferSize) {
 
     char* buffer = (char*)halloc(bufferSize + 1);
 
-    token = (struct TokenBuffer_s) {
+    token = (Token) {
         .text = buffer,
         .len = 0,
         .bufferSize = bufferSize,
@@ -91,14 +91,13 @@ void clearToken() {
  *
  * @return TODO: nothing at the moment
  */
-int cc;
+int cc = '\0';
 void next() {
 
     clearToken();
 
     do {
-        cc = getchar();
-    
+        
         if (cc == EOF) {
             // TODO: actually handle this
             fail(SIGNAL_EOF_REACHED);
@@ -108,10 +107,12 @@ void next() {
         // just a single character
         } else if (cc == '(') {
             token.type = TTYPE_LPAR;
-            break;
+            putch('(');
+            goto lexerConsumeAndReturn;
         } else if (cc == ')') {
             token.type = TTYPE_RPAR;
-            break;
+            putch(')');
+            goto lexerConsumeAndReturn;
         //} else if (cc == '.') {
         //    token.type = TTYPE_DOT;
         //    return;
@@ -123,22 +124,36 @@ void next() {
             // Keep adding character until a non-escaped " is found
         } else if (cc ==  ';') {
             while((cc = getchar()) != '\n') {};
+            // Also consume '\n'
         // TODO: recognize symbols
         } else if (cc >= '*' && cc <= '~') {
             do {
                 putch(cc);
                 cc = getchar();
             } while(cc >= '*' && cc <= '~');
-            token.text[token.len ++ ] = '\0';
             token.type = TTYPE_SYMBOL;
-            break;
+            goto lexerReturn;
         } else if (cc >= '!' && cc <= '\'') {
+            logError("%c (%x)", cc, cc);
             todo("Implement special characters");
         }
-
-    logDebug("Got token: %s", token.text);
+        
+        // If it doesn't match anything just consume it
+        cc = getchar();
 
     } while(1);
+
+// Cerain token (like symbols) keep reading until an invalid character is found
+// so they will jump in lexerReturn (cc is already outside of token)
+// While other (like parenthesis and strings) are single-character or have
+// well-defined begin-end, so they don't need to consume an additional character
+// to ensure both work the same way, the latter kind will jump to
+// lexerConsumeAndReturn
+lexerConsumeAndReturn:
+    cc = getchar();
+lexerReturn:
+    putch('\0');
+    return;
 }
 
 // // Keep to later escape string 
@@ -179,10 +194,12 @@ Box readForm() {
     switch(token.type) {
     case TTYPE_LPAR:
         // call readList
+        next();
         box = readList();
         break;
-    case TTYPE_RPAR:
     case TTYPE_DOT:
+        todo("Implement dot syntax");
+    case TTYPE_RPAR:
         // A form is either an atomic type or the beginning of a list
         box = boxSignal(SIGNAL_SYNTAX_ERROR);
         break;
@@ -197,6 +214,7 @@ Box readForm() {
         // Else the value is successfully inserted into the heap
         setTag(&box, TAG_SYMBOL);
         setValue(&box, (Value)rawRef);
+        break;
     default:
         todo("Support all symbols");
     }
@@ -207,25 +225,35 @@ Box readForm() {
 
 Box readList() {
 
-    // Consume next token
-    next();
-
+    // TODO: can reduce the scope of pointer registered to just readForm and
+    //       readList
     Box car, cdr, box;
     pointerRegistryPush(&box);
     pointerRegistryPush(&car);
     pointerRegistryPush(&cdr);
 
     if (token.type == TTYPE_RPAR) {
-        car = setBox(0, TAG_NIL);
+        box = setBox(0, TAG_NIL);
     } else {
-        car = readForm();
-        cdr = readList();
-    }
 
-    Cons* consRef = newCons();
-    consRef->car = car;
-    consRef->cdr = cdr;
-    box = setBox((Value) consRef, TAG_CONS);
+        // TODO: in this whole function GC can only be called here, reduce scope
+        //       if TCO does not prevent me from doing so {
+            car = readForm();
+            cdr = readList();
+
+            // consRef is not a registered pointer, but this not a problem,
+            // this reference is only used temporary to construct the cons,
+            // once the cons is assigned to "box", the consRef might be
+            // invalidated by GC, but the cons itself will survive being
+            // referenced by a registered pointer "box"
+            Cons* consRef = newCons();
+        // }
+
+        consRef->car = car;
+        consRef->cdr = cdr;
+
+        box = setBox((Value) consRef, TAG_CONS);
+    }
 
     pointerRegistryPop();
     pointerRegistryPop();

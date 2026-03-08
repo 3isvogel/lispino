@@ -1,82 +1,57 @@
-// #include <stdio.h>
-// #include <utility/log.h>
-// #include <utility/box.h>
-// #include <utility/signals.h>
-// #include <memory/heap.h>
-// 
-// #include "printer.h"
-// 
-// #define PRINT_BUFFER_LEN 1024
-// 
-// #define CEL(x) ((Cell)x)
-// 
-// // alernatively print on buffer
-// char print_buffer[PRINT_BUFFER_LEN];
-// 
-// void line_print(Box ast);
-// 
-// void Print(Box ast) {
-//     line_print(ast);
-//     printf("\n");
-//     C_GC();
-// }
-// 
-// void line_print(Box ast) {
-//     Cell val = CELL(ast);
-//     char* format;
-//     switch(get_tag(ast)) {
-//         case NIL:
-//             printf("NIL");
-//             break;
-//         case INT:
-//             printf("%ld", (long)val);
-//             break;
-//         case SYM:
-//             printf("%s", raw_adr(val));
-//             break;
-//         case LAB:
-//             printf("%s", raw_adr(val));
-//             break;
-//         case STR:
-//             printf("\"%s\"", raw_adr(val));
-//             break;
-//         case F64:
-//             printf("%f", ast);
-//             return;
-//         case ERR:;
-//             printf("ERR[%s]", ERS[LONG(val)]);
-//             return;
-//         case CON:
-//             // TODO for now cons cannot be created nor printed
-//             printf("(");
-//             do {
-//                 ast = val->cdr;
-//                 line_print(val->car);
-//                 val = CELL(ast);
-//             } while(get_tag(ast) == CON && printf(" "));
-//             if(get_tag(ast) != NIL) {
-//                 printf(" . ");
-//                 line_print(ast);
-//             }
-//             printf(")");
-//             break;
-//         case PRI:
-//             printf("<prim@%lx>", LONG(val));
-//             break;
-//         case CLO:
-//             printf("<clos@%lx", LONG(val));
-//             ast = val->car;
-//             while(get_tag(ast) == CON) {
-//                 val = CELL(ast);
-//                 printf(" ");
-//                 line_print(val->car);
-//                 ast = val->cdr;
-//             }
-//             printf(">");
-//             break;
-//         default:
-//             logError("uhhh...");
-//             fail(UNEXPECTED_BRANCH);
-//     }
-//     return;
-// }
+#include "printer.h"
+#include "utility/log.h"
+
+#include <utility/box.h>
+#include <utility/signals.h>
+#include <utility/log.h>
+
+#include <memory/heap.h>
+
+#include <stdio.h>
+
+void innerPrint(Box box) {
+    switch(getTag(&box)) {
+    case TAG_CONS:
+        printf("(");
+        Cons* cons = (Cons*)getValue(&box);
+        // Print the car
+        printf(" "); innerPrint(cons->car);
+        // As long as a cons exists to the right, follow it and repeat printing
+        while(getTag(&cons->cdr) == TAG_CONS) {
+            cons = (Cons*)getValue(&cons->cdr);
+            printf(" "); innerPrint(cons->car);
+        }
+
+        // At the end of a list, if cons is not nil print it separated by a "."
+        if (getTag(&cons->cdr) != TAG_NIL) {
+            printf(" . ");
+            innerPrint(cons->cdr);
+        }
+
+        // Then close the list with a ")"
+        printf(" )");
+        break;
+
+    case TAG_SYMBOL:
+        printf("%s", getRaw(box));
+        break;
+    case TAG_SIGNAL:
+        fprintf(stderr, ";" " " SET2E(BOLD_CODE, FG(RED_CODE)) "ERROR" RESET " Returned with signal %2d: %s", (Signal)getValue(&box), strSignal(getValue(&box)));
+        break;
+    case TAG_NIL:
+        printf("nil");
+        break;
+    default:
+        printf("%d", (int) getValue(&box));
+        break;
+    }
+}
+
+void Print(Box box) {
+    // This code is called after evaluation, if all references were valid they
+    // still are here, memory is never allocated and gc will never perform any
+    // moving here, so it's safe to work without registering any pointer
+    innerPrint(box);
+    // Newline (and flush)
+    printf("\n");
+}

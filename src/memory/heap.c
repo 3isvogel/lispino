@@ -9,7 +9,7 @@
 #include "string.h"
 #include "utility/box.h"
 
-#define HEAP_TRESHOLD_GC 0x4000
+#define HEAP_TRESHOLD_GC ((unsigned int)(HEAP_MAX_LEN / 2))
 
 typedef struct {
     Box* active;
@@ -109,9 +109,9 @@ BoxRef internalMemRequest(unsigned int size) {
     BoxRef reserved = &heap.active[heap.head];
     // Move head accordingly, aligned to Box size;
     unsigned int offset = (size-1)/sizeof(Box) + 1;
-    heap.head = offset;
     
-    heap.requested += size;
+    heap.head += offset;
+    heap.requested += offset;
 
     return reserved;
 }
@@ -119,7 +119,6 @@ BoxRef internalMemRequest(unsigned int size) {
 BoxRef newMem(unsigned int size) {
     // TODO: GC will be called here
     if (heap.requested > HEAP_TRESHOLD_GC){
-        todo("Call GC");
         gc();
     }
     logAlloc("Requesting: %dB", size);
@@ -130,8 +129,9 @@ BoxRef newMem(unsigned int size) {
 
     // Note: when requesting a block of memory provide at least enough memory
     // to fit a Box
-    logAlloc("Providing:  %dB", ((size-1)/sizeof(Box) + 1) * sizeof(Box));
-    return internalMemRequest(size);
+    BoxRef address = internalMemRequest(size);
+    logAlloc("Providing:  %dB @ 0x%p", ((size-1)/sizeof(Box) + 1) * sizeof(Box), address);
+    return address;
 }
 
 Cons* newCons() {
@@ -159,6 +159,12 @@ Box setRaw(BoxRef boxRef, char *string) {
     return setBox(0, TAG_NIL);
 }
 
+// TODO: deref check
+char* getRaw(Box box) {
+    BoxRef ref = (BoxRef)getValue(&box);
+    return (char*)(ref+1);
+}
+
 void moveBox(Box* box);
 
 void gc() {
@@ -183,17 +189,23 @@ void gc() {
         }
     } while(frameOuter(&frame));
 
-    // Move all heap accessiblefrom registered pointers
+    // Move all heap accessible from registered pointers
     for(unsigned int i = 0; i < registry.head; i++) {
-        // Check if a value is moved and update the pointer
-        
-        // boxRef is referring to the actual value in the stack
+
+        // boxRef is referring to the actual memory in the C program stack
         BoxRef boxRef = registry.data[i];
         // Ensure that the box is moved (will only move if does not contain an
         // immediate, otherwise return without doing anything, if the value is
         // moved already returns without doing anything)
+        // 
+        // This function treats each Box as an entry on the symbol stack, moving
+        // only elements that need to be moved, ignoring the others and updating
+        // references when needed
         moveBox(registry.data[i]);
     }
+
+    // After the clean reset the amount of bytes used
+    heap.requested = heap.head * sizeof(Box);
 }
 
 /*

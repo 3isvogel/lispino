@@ -90,3 +90,11 @@ void setTag(BoxRef box, Tag tag);
  * @return 
  */
 Box setBox(Value value, Tag tag);
+
+/**
+ * @brief returns the printable verion of a tag
+ *
+ * @param tag 
+ * @return 
+ */
+char* strTag(Tag tag);

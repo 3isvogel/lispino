@@ -67,6 +67,14 @@ BoxRef newRaw(unsigned int len);
 Box setRaw(BoxRef boxRef, char *string);
 
 /**
+ * @brief Returns the raw content of a string referenced by "box"
+ *
+ * @param box 
+ * @return 
+ */
+char* getRaw(Box box);
+
+/**
  * @brief Destroy pointer registry if it exitss
  */
 void destroyPointerRegistry();
