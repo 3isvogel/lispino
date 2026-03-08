@@ -17,7 +17,18 @@ CXX = g++
 LD = gcc
 
 # C flags
-CFLAGS = -O2 # -DBUILD_RELEASE
+CFLAGS = -O2
+
+# # Remove all logging except for errors
+# CFLAGS += -DBUILD_RELEASE
+
+# # Remove references to source when logging
+# CFLAGS += -DLOG_NO_SOURCE_POSITION
+
+# # Remove special charaters in logging (Useful when using terminals that do not
+#   support them
+# CFLAGS += -DLOG_DISABLE_COLOR
+
 # C++ flags
 CXXFLAGS = 
 # C/C++ flags
