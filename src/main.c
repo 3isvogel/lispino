@@ -36,18 +36,18 @@ void printsize() {
         totalSize;
     tokenBufferSize = (TOKEN_BUFFER_MAX_LEN+1) * sizeof(char);
     stackSize = (STACK_MAX_LEN) * sizeof(Cons);
-    heapSize = (HEAP_MAX_LEN) * sizeof(Box);
+    heapSize = (HEAP_MAX_LEN) * sizeof(Box) * 2;
     pointerRegistrySize = (POINTER_REGISTRY_MAX_LEN) * sizeof(Box*);
 
     // Using two heaps: copy GC
-    totalSize = tokenBufferSize + stackSize + heapSize * 2 + pointerRegistrySize;
+    totalSize = tokenBufferSize + stackSize + heapSize + pointerRegistrySize;
 
     logInfo("Memory         size size");
-    logInfo("Token buffer:  %5d (%4K)", tokenBufferSize, tokenBufferSize/K);
-    logInfo("Symbols stack: %5d (%4K)", stackSize, stackSize/K); 
-    logInfo("Heaps:         %5d (%4K) x 2", heapSize, heapSize/K); 
-    logInfo("Symbols stack: %5d (%4K)", pointerRegistrySize, pointerRegistrySize/K); 
-    logInfo("Total:         %5d (%4K)", totalSize, totalSize/K);
+    logInfo("Token buffer:  %5d (%dK)", tokenBufferSize, tokenBufferSize/K);
+    logInfo("Symbols stack: %5d (%dK)", stackSize, stackSize/K);
+    logInfo("Heaps:         %5d (%dK)", heapSize, (heapSize/K));
+    logInfo("Symbols stack: %5d (%dK)", pointerRegistrySize, pointerRegistrySize/K);
+    logInfo("Total:         %5d (%dK)", totalSize, totalSize/K);
 }
 
 int main(int argc, char** argv) {
@@ -57,9 +57,8 @@ int main(int argc, char** argv) {
     if (createMemory() == 0) {
         fail(SIGNAL_MEM_SETUP_FAIL);
     }
+    printsize();
     // if(!env_init()) fail(ENV_INIT_FAIL);
-
-    logDebug("HEAP%12s [TYPE] | %12s [TYPE]", "car_value", "cdr_value");
 
     while(1) {
         printf("%d > ", heapAvailableSize());

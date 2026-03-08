@@ -9,7 +9,7 @@
 #include "string.h"
 #include "utility/box.h"
 
-#define HEAP_TRESHOLD_GC ((unsigned int)(HEAP_MAX_LEN / 2))
+#define HEAP_TRESHOLD_GC ((unsigned int)(HEAP_MAX_LEN - 100))
 
 typedef struct {
     Box* active;
@@ -23,9 +23,9 @@ typedef struct {
     unsigned int requested;
 } Heap;
 Heap heap = (Heap) {
+    .base = NULL,
     .active = NULL,
     .inactive = NULL,
-    .base = NULL,
     .size = 0,
     .head = 0,
     .requested = 0,
@@ -42,8 +42,11 @@ Registry registry = (Registry) {
     .head = 0,
 };
 
-static inline unsigned int validRef(BoxRef ref) {
-    return (ref >= heap.base && ref < (Box*)((char*)heap.base + (heap.size*2)));
+void validateRef(BoxRef ref) {
+    if (ref < heap.base || ref >= (heap.base + (heap.size*2))) {
+        logInfo("Bad reference: %p <= %p <= %p", heap.base, ref, heap.base + (heap.size * 2));
+        fail(SIGNAL_BAD_REFERENCE);
+    }
 }
 
 unsigned int heapAvailableSize() {
@@ -58,18 +61,12 @@ unsigned int heapAvailableSize() {
  */
 static inline Box* rawPtr(BoxRef boxRef) {
     // Made generic so implementation can be changed
-    if (!validRef(boxRef)) {
-        logError("In rawPtr");
-        fail(SIGNAL_BAD_REFERENCE);
-    }
+    validateRef(boxRef);
     return boxRef;
 }
 
 Box follow(BoxRef boxRef) {
-    if (!validRef(boxRef)) {
-        logError("In follow");
-        fail(SIGNAL_BAD_REFERENCE);
-    }
+    validateRef(boxRef);
     return *boxRef;
 }
 
@@ -162,7 +159,7 @@ Box setRaw(BoxRef boxRef, char *string) {
     }
     memcpy(boxRef + 1, string, len+1);
     setValue(boxRef, len+1);
-    return setBox(0, TAG_NIL);
+    return nilBox();
 }
 
 // TODO: deref check
@@ -174,7 +171,7 @@ char* getRaw(Box box) {
 void moveBox(Box* box);
 
 void gc() {
-    logDebug("Called GC");
+    logDebug("Called GC: used %d", heap.head);
 
     // Sadly C won't let me do bitwise unless I am veeeeeery verbose
     // Use swap active and inactive pointer, consider an empty heap and start
@@ -212,6 +209,8 @@ void gc() {
 
     // After the clean reset the amount of bytes used
     heap.requested = heap.head * sizeof(Box);
+    logInfo("After GC: used %d",heap.head);
+
 }
 
 /*
@@ -285,7 +284,8 @@ void moveBox(BoxRef box) {
     switch(getTag(box)) {
         case TAG_CONS:
         case TAG_CLOSURE:
-            if(validRef(newRef = checkMoved(box))){
+            if((newRef = checkMoved(box))){
+                validateRef(newRef);
                 // The addres this box is pointing to has been moved to another
                 // location already, insead of copying it just update the old
                 // reference

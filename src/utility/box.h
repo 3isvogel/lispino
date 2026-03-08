@@ -95,6 +95,17 @@ void setTag(BoxRef box, Tag tag);
 Box setBox(Value value, Tag tag);
 
 /**
+ * @brief Returns a nil box
+ *
+ * Useful to initialize boxes and preventing GC to go curazy
+ *
+ * @return 
+ */
+static inline Box nilBox() {
+    return setBox(0, TAG_NIL);
+}
+
+/**
  * @brief returns the printable verion of a tag
  *
  * @param tag 

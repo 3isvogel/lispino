@@ -13,7 +13,7 @@
 
 #include <stdlib.h>
 
-#define DEFAULT_HEAP_MAX_LEN                128
+#define DEFAULT_HEAP_MAX_LEN                1000
 #define DEFAULT_POINTER_REGISTRY_MAX_LEN    128
 #define DEFAULT_TOKEN_BUFFER_MAX_LEN        128
 #define DEFAULT_STACK_MAX_LEN               128

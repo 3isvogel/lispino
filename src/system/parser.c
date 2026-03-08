@@ -209,7 +209,8 @@ Box readList();
 
 Box readForm() {
     // Save in pointer registry for automatic update on GC
-    Box box;
+    // Every registered Box MUST be initialized to prevent unwanted behavior
+    Box box = nilBox();
     BoxRef rawRef;
     pointerRegistryPush(&box);
 
@@ -258,15 +259,15 @@ Box readList() {
 
     // TODO: can reduce the scope of pointer registered to just readForm and
     //       readList
-    Box car, cdr, box;
+    Box car = nilBox(),
+        cdr = nilBox(),
+        box = nilBox();
     pointerRegistryPush(&box);
     pointerRegistryPush(&car);
     pointerRegistryPush(&cdr);
 
-    if (token.type == TTYPE_RPAR) {
-        box = setBox(0, TAG_NIL);
-    } else {
-
+    // If TTYPE_RPAR return empty list (which is nil)
+    if (token.type != TTYPE_RPAR) {
         // TODO: in this whole function GC can only be called here, reduce scope
         //       if TCO does not prevent me from doing so {
             car = readForm();

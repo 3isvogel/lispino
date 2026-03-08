@@ -55,7 +55,7 @@ void symbolPush(Box name, Box definition) {
 // number of pushed symbols somewhere
 
 void framePush() {
-    Box name = setBox(0, TAG_NIL),
+    Box name = nilBox(),
         definition = setBox(stack.base, TAG_INT);
     symbolPush(name, definition);
     stack.base = stack.head;
