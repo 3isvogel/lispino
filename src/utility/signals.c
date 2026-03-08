@@ -10,13 +10,9 @@ SIGNAL_LIST
 };
 #undef X
 
-void todo(const char* const message) {
-    logError("%s", message);
-    fail(SIGNAL_TO_DO);
-}
-
-void fail(Signal signal) {
-    logError("Failing with signal %2d: %s", signal, printableSignals[signal]);
+void _lineFail(Signal signal, char* file, int line) {
+    // needs explicit function to pass file and line to function
+    logPrint(LOG_LEVEL_ERROR, file, line, "Failing with signal %2d: %s", signal, printableSignals[signal]);
     // Clean all allocated memory
     destroyMemory();
     exit(signal);

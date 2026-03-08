@@ -16,12 +16,13 @@
 
 // Used by the lexer to communicate types of tokens to the parser
 #define TOKEN_TYPE_LIST \
-X(LPAR)             \
-X(RPAR)             \
-X(STRING)           \
-X(SYMBOL)           \
-X(DOT)              \
-X(NIL)              \
+X(LPAR)                 \
+X(RPAR)                 \
+X(STRING)               \
+X(SYMBOL)               \
+X(LABEL)                \
+X(DOT)                  \
+X(NIL)                  \
 X(QUOTE)
 
 #define X(x) TTYPE_##x,
@@ -30,6 +31,35 @@ typedef enum {
     TOKEN_TYPE_SIZE
 } TokenType;
 #undef X
+
+/**
+ * @brief Maps a TokenType to the respective Tag
+ *
+ * Returns TYPE_SIGNAL if conversion is not possible
+ *
+ * @param tokenType 
+ * @return 
+ */
+Tag ttypeToTag(TokenType tokenType) {
+    // TODO: can I make translation inside TOKEN_TYPE_LIST? eg:
+    //       X(STRING,TAG_STRING) X(LPAR,TAG_SIGNAL)
+    switch(tokenType) {
+    case TTYPE_SYMBOL:  return TAG_SYMBOL;
+    case TTYPE_STRING:  return TAG_STRING;
+    case TTYPE_LABEL:   return TAG_LABEL;
+
+    // This function is intended to translate similar types (string, label,
+    // symbols) to corresponding tag type, but declaration implies it can work
+    // with any type, the correct way is to catch different types earlier
+    // (like nil and dot) but these cases are included anyway for safety
+    // Since this checks are supposed to fail anyway, put them at the end,
+    // if you enter the cases listed below you can expect to almost certainly
+    // return a TAG_SIGNAL
+
+    case TTYPE_NIL:     return TAG_NIL;
+    default:            return TAG_SIGNAL;
+    }
+}
 
 typedef long long int TokenValue;
 
@@ -77,7 +107,7 @@ char* createParser(unsigned int bufferSize) {
 void putch(char character) {
     if (token.len == token.bufferSize) {
         logError("Token: %.*s", token.len, token.text);
-        fail(SIGNAL_TOKEN_BUFFER_FULL);
+        fail(SIGNAL_TOKEN_TOO_LONG);
     }
     token.text[token.len ++ ] = character;
 }
@@ -120,7 +150,20 @@ void next() {
         //    token.type = TTYPE_QUOTE;
         //    return;
         } else if (cc ==  '"') {
-            todo("Implement string parsing");
+            cc = getchar();
+            while (cc != '"'){
+                if (cc != '\\') {
+                    putchar(cc);
+                } else {
+                    cc = getchar();
+                    static const char *escapeChars = "abtnvfr";
+                    const char *escapedLetter = strchr(escapeChars, cc);
+                    putchar(escapedLetter ? escapedLetter - escapeChars : cc);
+                }
+                cc = getchar();
+            }
+            token.type = TTYPE_STRING;
+            goto lexerConsumeAndReturn;
             // Keep adding character until a non-escaped " is found
         } else if (cc ==  ';') {
             while((cc = getchar()) != '\n') {};
@@ -153,27 +196,8 @@ lexerConsumeAndReturn:
     cc = getchar();
 lexerReturn:
     putch('\0');
-    logInfo("Token: %s", token.text);
     return;
 }
-
-// // Keep to later escape string 
-// do {
-//     token_buffer[i++] = get();
-//     if(curr('"')) {get(); goto finalize;}
-//     while (curr('\\') && i < TOKENBUF_MAX_LEN) {
-//         get();
-//         // https://github.com/Robert-van-Engelen/lisp-cheney/blob/main/src/lisp-cheney.c
-//         // smart way to compact escape characters:
-//         // escape chars start from 7 to ...
-//         static const char *escs = "abtnvfr";
-//         const char *p = strchr(escs, see);
-//         token_buffer[i++] = p ? 7 + p - escs : see;
-//         get();
-//     }
-// } while (!curr('"') && !curr('\n') && i < TOKENBUF_MAX_LEN);
-// if (get() != '"')
-//     fail(UNTERMINATED_STR);
 
 // LISP simplified BNF
 //
@@ -202,16 +226,25 @@ Box readForm() {
         box = boxSignal(SIGNAL_SYNTAX_ERROR);
         break;
     // read atomic
+    // TODO: Could handle these types in a better way (default: + if-else) but
+    //       I think it is enough to just map the TTYPE values to the TAG values
+    case TTYPE_STRING:
     case TTYPE_SYMBOL:
+    case TTYPE_LABEL:
         // Request new memory and fill with value
+
+        // Might call GC
         rawRef = newRaw(token.len);
+
         box = setRaw(rawRef, token.text);
-        // If value does not fit: return the boxed signal
-        if (getValue(&box) == TAG_SIGNAL)
-            break;
-        // Else the value is successfully inserted into the heap
-        setTag(&box, TAG_SYMBOL);
-        setValue(&box, (Value)rawRef);
+        // If assignment didn't fail populate box with value and tag
+        if (getTag(&box) != TAG_SIGNAL) {
+            setValue(&box, (Value)rawRef);
+            // Should check that the returned tag is not a signal, but since this
+            // call relies under TTYPE_STRING/SYMBOL/LABEL there is no need to check
+            setTag(&box, ttypeToTag(token.type));
+        }
+        // Otherwise keep signal
         break;
     default:
         todo("Support all symbols");

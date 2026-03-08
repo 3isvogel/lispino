@@ -28,7 +28,7 @@ X(OUT_OF_STACK, "")         \
 X(LAMBDA_ARGS, "")          \
 X(PTR_MOVED, "")            \
 /* Introducing new error types, should use these instead to fail */ \
-X(TOKEN_BUFFER_FULL, "")    \
+X(TOKEN_TOO_LONG, "")       \
 X(HEAP_FULL, "")            \
 X(STACK_FULL, "")           \
 X(POINTER_REGISTRY_FULL, "")\
@@ -47,16 +47,23 @@ SIGNAL_LIST
 /**
  * @brief Prints message and fail
  *
+ * This needs to be a macro to make sure the line and file reported are correct
+ * ones
+ *
  * @param message 
  */
-void todo(const char* const message);
+#define todo(message) do { logError("TODO: %s", message); destroyMemory(); exit(SIGNAL_TO_DO); } while (0)
+
 
 /**
  * @brief Prints the readable signal and ends the process cleaning its memory
  *
  * @param signal
  */
-void fail(Signal signal);
+void _lineFail(Signal signal, char* file, int line);
+
+// Make sure to propagate line and file
+#define fail(signal) _lineFail(signal, __FILE__, __LINE__)
 
 /**
  * @brief Incapsulates signal into a Box

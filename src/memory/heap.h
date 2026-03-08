@@ -62,7 +62,7 @@ BoxRef newRaw(unsigned int len);
  * @brief Sets the value of a raw string
  *
  * @param len 
- * @return a nil box on success, a signaled box otherwise
+ * @return a boxed reference to the raw success, a boxed signal otherwise
  */
 Box setRaw(BoxRef boxRef, char *string);
 

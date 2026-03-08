@@ -58,12 +58,18 @@ unsigned int heapAvailableSize() {
  */
 static inline Box* rawPtr(BoxRef boxRef) {
     // Made generic so implementation can be changed
-    if (!validRef(boxRef)) fail(SIGNAL_BAD_REFERENCE);
+    if (!validRef(boxRef)) {
+        logError("In rawPtr");
+        fail(SIGNAL_BAD_REFERENCE);
+    }
     return boxRef;
 }
 
 Box follow(BoxRef boxRef) {
-    if (!validRef(boxRef)) fail(SIGNAL_BAD_REFERENCE);
+    if (!validRef(boxRef)) {
+        logError("In follow");
+        fail(SIGNAL_BAD_REFERENCE);
+    }
     return *boxRef;
 }
 

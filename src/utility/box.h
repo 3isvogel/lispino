@@ -34,7 +34,10 @@ typedef enum {
 
 typedef long long int Value;
 
-typedef struct {
+typedef struct
+// TODO: Consider if it's oki
+__attribute__((__packed__))
+{
     // Doesn't really matter which type this has, as long as it fits 64 bits
     Value value;
     // Doesn't really matter which type this has, used as a mask

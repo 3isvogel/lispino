@@ -31,8 +31,10 @@ void innerPrint(Box box) {
         // Then close the list with a ")"
         printf(")");
         break;
-
+    case TAG_STRING:
     case TAG_SYMBOL:
+    case TAG_LABEL:
+        // Get the raw content of a string type
         printf("%s", getRaw(box));
         break;
     case TAG_SIGNAL:

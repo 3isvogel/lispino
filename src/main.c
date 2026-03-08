@@ -52,7 +52,7 @@ void printsize() {
 
 int main(int argc, char** argv) {
 
-    logSetLevel(LOG_LEVEL_ALLOC);
+    logSetLevel(LOG_LEVEL_DEBUG);
 
     if (createMemory() == 0) {
         fail(SIGNAL_MEM_SETUP_FAIL);
