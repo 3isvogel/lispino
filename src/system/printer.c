@@ -15,7 +15,7 @@ void innerPrint(Box box) {
         printf("(");
         Cons* cons = (Cons*)getValue(&box);
         // Print the car
-        printf(" "); innerPrint(cons->car);
+        innerPrint(cons->car);
         // As long as a cons exists to the right, follow it and repeat printing
         while(getTag(&cons->cdr) == TAG_CONS) {
             cons = (Cons*)getValue(&cons->cdr);
@@ -29,7 +29,7 @@ void innerPrint(Box box) {
         }
 
         // Then close the list with a ")"
-        printf(" )");
+        printf(")");
         break;
 
     case TAG_SYMBOL:

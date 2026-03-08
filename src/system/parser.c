@@ -153,6 +153,7 @@ lexerConsumeAndReturn:
     cc = getchar();
 lexerReturn:
     putch('\0');
+    logInfo("Token: %s", token.text);
     return;
 }
 
@@ -183,9 +184,6 @@ Box readForm();
 Box readList();
 
 Box readForm() {
-    // Consume next token
-    next();
-
     // Save in pointer registry for automatic update on GC
     Box box;
     BoxRef rawRef;
@@ -239,6 +237,7 @@ Box readList() {
         // TODO: in this whole function GC can only be called here, reduce scope
         //       if TCO does not prevent me from doing so {
             car = readForm();
+            next();
             cdr = readList();
 
             // consRef is not a registered pointer, but this not a problem,
@@ -249,10 +248,14 @@ Box readList() {
             Cons* consRef = newCons();
         // }
 
-        consRef->car = car;
-        consRef->cdr = cdr;
+        if (token.type == TTYPE_RPAR) {
+            consRef->car = car;
+            consRef->cdr = cdr;
 
-        box = setBox((Value) consRef, TAG_CONS);
+            box = setBox((Value) consRef, TAG_CONS);
+        } else {
+            box = boxSignal(SIGNAL_SYNTAX_ERROR);
+        }
     }
 
     pointerRegistryPop();
@@ -262,5 +265,6 @@ Box readList() {
 }
 
 Box Read() {
+    next();
     return readForm();
 }
