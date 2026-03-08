@@ -137,15 +137,16 @@ void next() {
         // just a single character
         } else if (cc == '(') {
             token.type = TTYPE_LPAR;
-            putch('(');
+            putch(cc);
             goto lexerConsumeAndReturn;
         } else if (cc == ')') {
             token.type = TTYPE_RPAR;
-            putch(')');
+            putch(cc);
             goto lexerConsumeAndReturn;
-        //} else if (cc == '.') {
-        //    token.type = TTYPE_DOT;
-        //    return;
+        } else if (cc == '.') {
+            token.type = TTYPE_DOT;
+            putch(cc);
+            goto lexerConsumeAndReturn;
         //} else if (cc == '\'') {
         //    token.type = TTYPE_QUOTE;
         //    return;
@@ -174,7 +175,10 @@ void next() {
                 putch(cc);
                 cc = getchar();
             } while(cc >= '*' && cc <= '~');
-            token.type = TTYPE_SYMBOL;
+            if (token.text[0] == ':')
+                token.type = TTYPE_LABEL;
+            else
+                token.type = TTYPE_SYMBOL;
             goto lexerReturn;
         } else if (cc >= '!' && cc <= '\'') {
             logError("%c (%x)", cc, cc);
@@ -219,13 +223,10 @@ Box readForm() {
         // call readList
         next();
         box = readList();
-        break;
-    case TTYPE_DOT:
-        todo("Implement dot syntax");
-    case TTYPE_RPAR:
-        // A form is either an atomic type or the beginning of a list
-        box = boxSignal(SIGNAL_SYNTAX_ERROR);
-        break;
+        if (token.type != TTYPE_RPAR || getTag(&box) == TAG_SIGNAL) {
+            box = boxSignal(SIGNAL_SYNTAX_ERROR);
+        }
+       break;
     // read atomic
     // TODO: Could handle these types in a better way (default: + if-else) but
     //       I think it is enough to just map the TTYPE values to the TAG values
@@ -247,6 +248,12 @@ Box readForm() {
         }
         // Otherwise keep signal
         break;
+    case TTYPE_DOT:
+        // If a dot appears here then a list is malformed
+    case TTYPE_RPAR:
+        // A form is either an atomic type or the beginning of a list
+        box = boxSignal(SIGNAL_SYNTAX_ERROR);
+        break; 
     default:
         todo("Support all symbols");
     }
@@ -257,40 +264,105 @@ Box readForm() {
 
 Box readList() {
 
-    // TODO: can reduce the scope of pointer registered to just readForm and
-    //       readList
-    Box car = nilBox(),
-        cdr = nilBox(),
-        box = nilBox();
+    // This function could be implemented simply as a 
+    // car = readForm();
+    // next();
+    // cdr = readList();
+    // And then constructing just a single cons, leaving the burden of keeping
+    // references to recursion, however, doing so would result in possibly very
+    // deep recursion (list would be scanned recursively, to avoid this
+    // implement lists iteratively, this is simple computer science 101 list
+    // iterative creation, using only 3 pointers:
+
+        // Holds the head of the list and is the return value
+    Box box   = nilBox(),
+        // Temporary value to be added in a car
+        value = nilBox(),
+        // Reference to the previous cons, temporary reference to list's tail
+        prev  = nilBox();
     pointerRegistryPush(&box);
-    pointerRegistryPush(&car);
-    pointerRegistryPush(&cdr);
+    pointerRegistryPush(&value);
+    pointerRegistryPush(&prev);
 
-    // If TTYPE_RPAR return empty list (which is nil)
-    if (token.type != TTYPE_RPAR) {
-        // TODO: in this whole function GC can only be called here, reduce scope
-        //       if TCO does not prevent me from doing so {
-            car = readForm();
-            next();
-            cdr = readList();
-
-            // consRef is not a registered pointer, but this not a problem,
-            // this reference is only used temporary to construct the cons,
-            // once the cons is assigned to "box", the consRef might be
-            // invalidated by GC, but the cons itself will survive being
-            // referenced by a registered pointer "box"
-            Cons* consRef = newCons();
-        // }
-
-        if (token.type == TTYPE_RPAR) {
-            consRef->car = car;
-            consRef->cdr = cdr;
-
-            box = setBox((Value) consRef, TAG_CONS);
-        } else {
-            box = boxSignal(SIGNAL_SYNTAX_ERROR);
-        }
+    // If first token is a right parenthesis, empty list evaluates to nil,
+    // skip list creation alltogether
+    if (token.type == TTYPE_RPAR) {
+        goto readListEnd;
     }
+    
+    // Read next form and assign it as car of a new cons
+    value = readForm();
+    next();
+    // If value obtained is a signal discard list and bubble up the value
+    if (getTag(&value) == TAG_SIGNAL) {
+        // Should do this check everytime entering a list, if a value in the
+        // list is a signal then the returned value will be the signal itself
+        //
+        // Consume the list even if an error occurs
+        box = value;
+    }
+    Cons* consRef = newCons();
+    consRef->car = value;
+
+    // Reference it from a registered box so it will survive GC, this will
+    // be the root of the tree returned
+    box = setBox((Value) consRef, TAG_CONS);
+    // Additional reference used for iteratively scan list
+    prev = setBox((Value) consRef, TAG_CONS);
+
+    // Keep going until the end of the current list or an explicit cdr is
+    // signaled by the "."
+    while(token.type != TTYPE_RPAR && token.type != TTYPE_DOT) {
+
+        value = readForm();
+        next();
+        if (getTag(&value) == TAG_SIGNAL) {
+            box = value;
+        }
+
+        // reserve a new cons (will continue the list
+        consRef = newCons();
+        // Set car value of the folowing Cons
+        consRef->car = value;
+
+        // Link previous Cons with the new one
+        Cons* prevConsRef = (Cons*)getValue(&prev);
+        setValue(&prevConsRef->cdr, (Value) consRef);
+        setTag(&prevConsRef->cdr,   (Tag) TAG_CONS);
+
+        // Move "prev" to point to new Cons (Tag stays the same)
+        setValue(&prev, (Value) consRef);
+    }
+
+    // Close the list setting last cdr
+    // If the token is a dot, then specify the cdr, otherwise it's just a
+    // nil box
+    if (token.type == TTYPE_RPAR) {
+        // Close with a null, do not consume last ')'
+        ((Cons*)getValue(&prev))->cdr = nilBox();
+    } else if (token.type == TTYPE_DOT) {
+        // If the next token is a dot consume it, append the value to
+        // cdr instead of car and do not allocate new Cons
+        next();
+        value = readForm();
+        // TODO: might factor out this check
+        if (getTag(&value) == TAG_SIGNAL) {
+            box = value;
+        }
+        // Need to extract value from "iterative" as consRef might be
+        // invalid
+        ((Cons*)getValue(&prev))->cdr = value;
+        // consume '.' and Form, leave final ')', is checked by readForm
+        next();
+    } else {
+        // This should not happen, but I will keep it as a guard
+        box = boxSignal(SIGNAL_SYNTAX_ERROR);
+    }
+
+// Using a label so the code is not as messy, could make a dedicated end
+// function which pops the desired number of pointers and recycle it for other
+// functions
+readListEnd:
 
     pointerRegistryPop();
     pointerRegistryPop();
