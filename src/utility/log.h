@@ -4,17 +4,23 @@
 extern "C" {
 #endif
 
-typedef enum {
-  LOG_LEVEL_ALLOC = 0,
-  LOG_LEVEL_DEBUG,
-  LOG_LEVEL_INFO,
-  LOG_LEVEL_WARNING,
-  LOG_LEVEL_ERROR
-} log_level_t;
+#define LOG_LEVEL_LIST  \
+X(ALLOC)                \
+X(DEBUG)                \
+X(INFO)                 \
+X(WARNING)              \
+X(ERROR)                \
 
-void logSetLevel(log_level_t log_level);
-log_level_t logGetLevel();
-void logPrint(log_level_t log_level, const char *file_name, int line,
+#define X(x)    LOG_LEVEL_##x,
+typedef enum {
+    LOG_LEVEL_LIST
+    LOG_LEVEL_MAX
+} LogLevel;
+#undef X
+
+void logSetLevel(LogLevel logLevel);
+LogLevel logGetLevel();
+void logPrint(LogLevel logLevel, const char *fileName, int lineNumber,
               const char *format, ...);
 
 // apparently doing so is necessary to correctly connect strings

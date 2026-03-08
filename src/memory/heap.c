@@ -9,7 +9,7 @@
 #include "string.h"
 #include "utility/box.h"
 
-#define HEAP_TRESHOLD_GC ((unsigned int)(HEAP_MAX_LEN - 100))
+#define HEAP_TRESHOLD_GC ((unsigned int)((HEAP_MAX_LEN * sizeof(Box)) - 500))
 
 typedef struct {
     Box* active;
@@ -114,7 +114,7 @@ BoxRef internalMemRequest(unsigned int size) {
     unsigned int offset = (size-1)/sizeof(Box) + 1;
     
     heap.head += offset;
-    heap.requested += offset;
+    heap.requested += offset * sizeof(Box);
 
     return reserved;
 }
@@ -171,7 +171,7 @@ char* getRaw(Box box) {
 void moveBox(Box* box);
 
 void gc() {
-    logDebug("Called GC: used %d", heap.head);
+    logDebug("Called GC: used %d", heap.requested);
 
     // Sadly C won't let me do bitwise unless I am veeeeeery verbose
     // Use swap active and inactive pointer, consider an empty heap and start
@@ -209,7 +209,7 @@ void gc() {
 
     // After the clean reset the amount of bytes used
     heap.requested = heap.head * sizeof(Box);
-    logInfo("After GC: used %d",heap.head);
+    logInfo("After GC: used %d", heap.requested);
 
 }
 
