@@ -208,23 +208,23 @@ lexerReturn:
 // S -> A | (L)                 <-- readForm
 // L -> \epsilon | SL           <-- readList
 
-Box readForm();
+void readForm(BoxRef boxRef);
 Box readList();
 
-Box readForm() {
+void readForm(BoxRef boxRef) {
     // Save in pointer registry for automatic update on GC
     // Every registered Box MUST be initialized to prevent unwanted behavior
-    Box box = nilBox();
+    //Box box = boxNil();
     BoxRef rawRef;
-    pointerRegistryPush(&box);
+    // pointerRegistryPush(&box);
 
     switch(token.type) {
     case TTYPE_LPAR:
         // call readList
         next();
-        box = readList();
-        if (token.type != TTYPE_RPAR || getTag(&box) == TAG_SIGNAL) {
-            box = boxSignal(SIGNAL_SYNTAX_ERROR);
+        *boxRef = readList();
+        if (token.type != TTYPE_RPAR || getTag(boxRef) == TAG_SIGNAL) {
+            *boxRef = boxSignal(SIGNAL_SYNTAX_ERROR);
         }
        break;
     // read atomic
@@ -238,13 +238,13 @@ Box readForm() {
         // Might call GC
         rawRef = newRaw(token.len);
 
-        box = setRaw(rawRef, token.text);
+        *boxRef = setRaw(rawRef, token.text);
         // If assignment didn't fail populate box with value and tag
-        if (getTag(&box) != TAG_SIGNAL) {
-            setValue(&box, (Value)rawRef);
+        if (getTag(boxRef) != TAG_SIGNAL) {
+            setValue(boxRef, (Value)rawRef);
             // Should check that the returned tag is not a signal, but since this
             // call relies under TTYPE_STRING/SYMBOL/LABEL there is no need to check
-            setTag(&box, ttypeToTag(token.type));
+            setTag(boxRef, ttypeToTag(token.type));
         }
         // Otherwise keep signal
         break;
@@ -252,14 +252,14 @@ Box readForm() {
         // If a dot appears here then a list is malformed
     case TTYPE_RPAR:
         // A form is either an atomic type or the beginning of a list
-        box = boxSignal(SIGNAL_SYNTAX_ERROR);
+        *boxRef = boxSignal(SIGNAL_SYNTAX_ERROR);
         break; 
     default:
         todo("Support all symbols");
     }
 
-    pointerRegistryPop();
-    return box;
+    // ointerRegistryPop();
+    // return box;
 }
 
 Box readList() {
@@ -275,11 +275,11 @@ Box readList() {
     // iterative creation, using only 3 pointers:
 
         // Holds the head of the list and is the return value
-    Box box   = nilBox(),
+    Box box   = boxNil(),
         // Temporary value to be added in a car
-        value = nilBox(),
+        value = boxNil(),
         // Reference to the previous cons, temporary reference to list's tail
-        prev  = nilBox();
+        prev  = boxNil();
     pointerRegistryPush(&box);
     pointerRegistryPush(&value);
     pointerRegistryPush(&prev);
@@ -291,7 +291,7 @@ Box readList() {
     }
     
     // Read next form and assign it as car of a new cons
-    value = readForm();
+    readForm(&value);
     next();
     // If value obtained is a signal discard list and bubble up the value
     if (getTag(&value) == TAG_SIGNAL) {
@@ -314,7 +314,7 @@ Box readList() {
     // signaled by the "."
     while(token.type != TTYPE_RPAR && token.type != TTYPE_DOT) {
 
-        value = readForm();
+        readForm(&value);
         next();
         if (getTag(&value) == TAG_SIGNAL) {
             box = value;
@@ -339,12 +339,12 @@ Box readList() {
     // nil box
     if (token.type == TTYPE_RPAR) {
         // Close with a null, do not consume last ')'
-        ((Cons*)getValue(&prev))->cdr = nilBox();
+        ((Cons*)getValue(&prev))->cdr = boxNil();
     } else if (token.type == TTYPE_DOT) {
         // If the next token is a dot consume it, append the value to
         // cdr instead of car and do not allocate new Cons
         next();
-        value = readForm();
+        readForm(&value);
         // TODO: might factor out this check
         if (getTag(&value) == TAG_SIGNAL) {
             box = value;
@@ -371,6 +371,15 @@ readListEnd:
 }
 
 Box Read() {
+
+    Box box = boxNil();
+
+    pointerRegistryPush(&box);
+
     next();
-    return readForm();
+    readForm(&box);
+
+    pointerRegistryPop();
+
+    return box;
 }

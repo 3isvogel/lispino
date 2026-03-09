@@ -159,7 +159,7 @@ Box setRaw(BoxRef boxRef, char *string) {
     }
     memcpy(boxRef + 1, string, len+1);
     setValue(boxRef, len+1);
-    return nilBox();
+    return boxNil();
 }
 
 // TODO: deref check
