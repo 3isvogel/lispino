@@ -147,9 +147,10 @@ void next() {
             token.type = TTYPE_DOT;
             putch(cc);
             goto lexerConsumeAndReturn;
-        //} else if (cc == '\'') {
-        //    token.type = TTYPE_QUOTE;
-        //    return;
+        } else if (cc == '\'') {
+            token.type = TTYPE_QUOTE;
+            putch(cc);
+            goto lexerConsumeAndReturn;
         } else if (cc ==  '"') {
             cc = getchar();
             while (cc != '"'){
@@ -221,7 +222,10 @@ void readForm(BoxRef boxRef) {
         // call readList
         next();
         readList(boxRef);
-        if (token.type != TTYPE_RPAR || getTag(boxRef) == TAG_SIGNAL) {
+        // Keeping signals separated to later differenciate them
+        if (token.type != TTYPE_RPAR) {
+            *boxRef = boxSignal(SIGNAL_SYNTAX_ERROR);
+        } else if (getTag(boxRef) == TAG_SIGNAL) {
             *boxRef = boxSignal(SIGNAL_SYNTAX_ERROR);
         }
        break;
@@ -248,6 +252,7 @@ void readForm(BoxRef boxRef) {
         break;
     case TTYPE_DOT:
         // If a dot appears here then a list is malformed
+        *boxRef = boxSignal(SIGNAL_SYNTAX_ERROR);
     case TTYPE_RPAR:
         // A form is either an atomic type or the beginning of a list
         *boxRef = boxSignal(SIGNAL_SYNTAX_ERROR);
@@ -268,6 +273,10 @@ void readList(BoxRef boxRef) {
     // deep recursion (list would be scanned recursively, to avoid this
     // implement lists iteratively, this is simple computer science 101 list
     // iterative creation, using only 3 pointers:
+    //
+    // TODO: Another option that might make the operation easier is
+    // readList(BoxRef head, BoxRef value, BoxRef value);
+    // And using tail call
 
         // Temporary value to be added in a car
     Box value = boxNil(),

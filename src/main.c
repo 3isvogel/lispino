@@ -6,7 +6,7 @@
 #include <memory/heap.h>
 
 #include <system/parser.h>
-// #include <system/eval.h>
+#include <system/eval.h>
 #include <system/printer.h>
 
 #include <stdio.h>
@@ -66,8 +66,7 @@ int main(int argc, char** argv) {
         fflush(stdout);
         // Read 1 vaild s-expr
         Box ret = Read();
-        // ret = Eval(ret);
-        // logDebug("result: %12x [%s]", get_val(ret), type_name[get_tag(ret)]);
+        ret = Eval(ret);
         Print(ret);
     }
 }

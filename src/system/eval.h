@@ -2,4 +2,4 @@
 
 #include <utility/box.h>
 
-Box Eval(Box ast);
+Box Eval(Box box);

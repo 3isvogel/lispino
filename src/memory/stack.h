@@ -56,7 +56,7 @@ Box defineSymbol(Box name, Box definition);
  *
  * @return the value of the symbol
  */
-Box getSymbol(Box name);
+Box getSymbol(BoxRef nameRef);
 
 /**
  * @brief Initialize the environment with the primitives

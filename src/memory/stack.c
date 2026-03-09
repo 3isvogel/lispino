@@ -124,14 +124,14 @@ Box defineSymbol(Box name, Box definition) {
     return definition;
 }
 
-Box getSymbol(Box name) {
+Box getSymbol(BoxRef nameRef) {
 
     // TODO: consider removing this check
-    if (getTag(&name) != TAG_SYMBOL) {
+    if (getTag(nameRef) != TAG_SYMBOL) {
         return boxSignal(SIGNAL_WRONG_TYPE);
     }
     // If a string is saved as X.AAA.ssss... just move to the next Box pointer
-    char* rawName = (char*)(((BoxRef)getValue(&name)) + 1);
+    char* rawName = (char*)(((BoxRef)getValue(nameRef)) + 1);
 
     // Search from the inner to the outer frame, until found or last frame is
     // reached

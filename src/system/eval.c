@@ -1,11 +1,9 @@
-// #include "eval.h"
-// #include "types.h"
-// #include "errors.h"
-// #include "log.h"
-// #include "stack.h"
-// #include "heap.h"
-// #include "string.h"
-// 
+#include "eval.h"
+#include <utility/box.h>
+#include <utility/signals.h>
+#include <memory/stack.h>
+#include <memory/heap.h>
+
 // Box eval_ast(Box ast) {
 //     Cell pre, post, new_head;
 //     switch(get_tag(ast)) {
@@ -47,7 +45,6 @@
 //     return box(CLO, get_val(ast));
 // }
 // 
-// #include "printer.h"
 // #include <stdio.h>
 // 
 // Box def_ops(Box ast) {
@@ -75,10 +72,37 @@
 //     return define_sym(sym, ast);
 // }
 // 
-// #include "printer.h"
-// 
 // int frame_lvl = 0;
-// 
+
+Box evalForm(BoxRef boxRef) {
+
+    // This box will be used as the return value
+    Box box = boxNil();
+
+    pointerRegistryPush(&box);
+
+    switch (getTag(boxRef)) {
+    case TAG_SYMBOL:
+        box = getSymbol(boxRef);
+        break;
+    // Atomic values are evaluated to the same value
+    default:
+        box = *boxRef;
+    }
+
+    pointerRegistryPop();
+    return box;
+}
+
+Box Eval(Box box) {
+    // Register this box before doing additional processing
+    pointerRegistryPush(&box);
+
+    return evalForm(&box);
+
+    pointerRegistryPop();
+}
+
 // Box Eval(Box ast) {
 //     Box first; Cell cc;
 //     char* sym;
