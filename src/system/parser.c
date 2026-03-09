@@ -209,20 +209,18 @@ lexerReturn:
 // L -> \epsilon | SL           <-- readList
 
 void readForm(BoxRef boxRef);
-Box readList();
+void readList(BoxRef boxRef);
 
 void readForm(BoxRef boxRef) {
     // Save in pointer registry for automatic update on GC
     // Every registered Box MUST be initialized to prevent unwanted behavior
-    //Box box = boxNil();
     BoxRef rawRef;
-    // pointerRegistryPush(&box);
 
     switch(token.type) {
     case TTYPE_LPAR:
         // call readList
         next();
-        *boxRef = readList();
+        readList(boxRef);
         if (token.type != TTYPE_RPAR || getTag(boxRef) == TAG_SIGNAL) {
             *boxRef = boxSignal(SIGNAL_SYNTAX_ERROR);
         }
@@ -257,12 +255,9 @@ void readForm(BoxRef boxRef) {
     default:
         todo("Support all symbols");
     }
-
-    // ointerRegistryPop();
-    // return box;
 }
 
-Box readList() {
+void readList(BoxRef boxRef) {
 
     // This function could be implemented simply as a 
     // car = readForm();
@@ -274,13 +269,10 @@ Box readList() {
     // implement lists iteratively, this is simple computer science 101 list
     // iterative creation, using only 3 pointers:
 
-        // Holds the head of the list and is the return value
-    Box box   = boxNil(),
         // Temporary value to be added in a car
-        value = boxNil(),
+    Box value = boxNil(),
         // Reference to the previous cons, temporary reference to list's tail
         prev  = boxNil();
-    pointerRegistryPush(&box);
     pointerRegistryPush(&value);
     pointerRegistryPush(&prev);
 
@@ -294,19 +286,13 @@ Box readList() {
     readForm(&value);
     next();
     // If value obtained is a signal discard list and bubble up the value
-    if (getTag(&value) == TAG_SIGNAL) {
-        // Should do this check everytime entering a list, if a value in the
-        // list is a signal then the returned value will be the signal itself
-        //
-        // Consume the list even if an error occurs
-        box = value;
-    }
+    signalPass(boxRef, &value);
     Cons* consRef = newCons();
     consRef->car = value;
 
     // Reference it from a registered box so it will survive GC, this will
     // be the root of the tree returned
-    box = setBox((Value) consRef, TAG_CONS);
+    *boxRef = setBox((Value) consRef, TAG_CONS);
     // Additional reference used for iteratively scan list
     prev = setBox((Value) consRef, TAG_CONS);
 
@@ -316,9 +302,8 @@ Box readList() {
 
         readForm(&value);
         next();
-        if (getTag(&value) == TAG_SIGNAL) {
-            box = value;
-        }
+        // If value is a signal assign it to boxRef
+        signalPass(boxRef, &value);
 
         // reserve a new cons (will continue the list
         consRef = newCons();
@@ -345,10 +330,8 @@ Box readList() {
         // cdr instead of car and do not allocate new Cons
         next();
         readForm(&value);
-        // TODO: might factor out this check
-        if (getTag(&value) == TAG_SIGNAL) {
-            box = value;
-        }
+        // If value is a signal assign it to boxRef
+        signalPass(boxRef, &value);
         // Need to extract value from "iterative" as consRef might be
         // invalid
         ((Cons*)getValue(&prev))->cdr = value;
@@ -356,7 +339,7 @@ Box readList() {
         next();
     } else {
         // This should not happen, but I will keep it as a guard
-        box = boxSignal(SIGNAL_SYNTAX_ERROR);
+        *boxRef = boxSignal(SIGNAL_SYNTAX_ERROR);
     }
 
 // Using a label so the code is not as messy, could make a dedicated end
@@ -366,17 +349,15 @@ readListEnd:
 
     pointerRegistryPop();
     pointerRegistryPop();
-    pointerRegistryPop();
-    return box;
 }
 
 Box Read() {
 
     Box box = boxNil();
+    next();
 
     pointerRegistryPush(&box);
 
-    next();
     readForm(&box);
 
     pointerRegistryPop();

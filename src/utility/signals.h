@@ -74,9 +74,18 @@ void _lineFail(Signal signal, char* file, int line);
 Box boxSignal(Signal signal);
 
 /**
- * @brief returns the printable verion of a signal
+ * @brief Returns the printable verion of a signal
  *
  * @param signal 
  * @return 
  */
 char* strSignal(Signal signal);
+
+/**
+ * @brief Copies a boxed signal to another box
+ *
+ * @param dest 
+ * @param src 
+ * @return a positive number if dest was overwritten, 0 otherwise
+ */
+unsigned int signalPass(BoxRef dest, BoxRef src);

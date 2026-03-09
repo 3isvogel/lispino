@@ -26,3 +26,12 @@ char* strSignal(Signal signal) {
     // TODO: check boundaries?
     return printableSignals[signal];
 }
+
+unsigned int signalPass(BoxRef dest, BoxRef src) {
+    if (getTag(src) != TAG_SIGNAL) {
+        return 0;
+    }
+   *dest = *src;
+   return 1;
+
+}
