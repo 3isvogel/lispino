@@ -38,6 +38,8 @@ X(POINTER_REGISTRY_FULL, "")\
 X(SYNTAX_ERROR, "")         \
 X(BAD_REFERENCE, "")        \
 X(FAIL_RAWMEMORY_CHECK, "") \
+X(POINTER_REGISTRY_LEAKING, "")\
+X(POINTER_REGISTRY_EMPTY, "")\
 X(TO_DO, "")
     
 #define X(x,s) SIGNAL_##x,

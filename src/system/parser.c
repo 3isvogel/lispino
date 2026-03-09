@@ -315,19 +315,22 @@ void readList(BoxRef boxRef) {
     // readList(BoxRef head, BoxRef value, BoxRef value);
     // And using tail call
 
+    // If first token is a right parenthesis, empty list evaluates to nil,
+    // skip list creation alltogether
+    if (token.type == TTYPE_RPAR) {
+        *boxRef = boxNil();
+        return;
+    }
+    
         // Temporary value to be added in a car
     Box value = boxNil(),
         // Reference to the previous cons, temporary reference to list's tail
         prev  = boxNil();
+
+
     pointerRegistryPush(&value);
     pointerRegistryPush(&prev);
 
-    // If first token is a right parenthesis, empty list evaluates to nil,
-    // skip list creation alltogether
-    if (token.type == TTYPE_RPAR) {
-        goto readListEnd;
-    }
-    
     // Read next form and assign it as car of a new cons
     readForm(&value);
     next();
@@ -387,17 +390,11 @@ void readList(BoxRef boxRef) {
         *boxRef = boxSignal(SIGNAL_SYNTAX_ERROR);
     }
 
-// Using a label so the code is not as messy, could make a dedicated end
-// function which pops the desired number of pointers and recycle it for other
-// functions
-readListEnd:
-
     pointerRegistryPop();
     pointerRegistryPop();
 }
 
 Box Read() {
-    pointerRegistryReset();
 
     Box box = boxNil();
     next();

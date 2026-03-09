@@ -105,3 +105,8 @@ void pointerRegistryPop();
  * misses
  */
 void pointerRegistryReset();
+
+/**
+ * @brief returns a positive value if pointerRegitry is leaking
+ */
+unsigned int pointerRegistryLeaking();

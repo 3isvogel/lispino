@@ -17,7 +17,7 @@ CXX = g++
 LD = gcc
 
 # C flags
-CFLAGS = -O2
+CFLAGS = -O2 -Wall
 
 # # Remove all logging except for errors
 # CFLAGS += -DBUILD_RELEASE

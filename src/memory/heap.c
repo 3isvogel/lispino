@@ -197,8 +197,6 @@ void gc() {
     // Move all heap accessible from registered pointers
     for(unsigned int i = 0; i < registry.head; i++) {
 
-        // boxRef is referring to the actual memory in the C program stack
-        BoxRef boxRef = registry.data[i];
         // Ensure that the box is moved (will only move if does not contain an
         // immediate, otherwise return without doing anything, if the value is
         // moved already returns without doing anything)
@@ -350,9 +348,16 @@ void pointerRegistryPush(BoxRef boxRef) {
 }
 
 void pointerRegistryPop() {
-    if (registry.head > 0) registry.head --;
+    if (registry.head == 0) fail(SIGNAL_POINTER_REGISTRY_EMPTY);
+        registry.head --;
 }
 
 void pointerRegistryReset() {
     registry.head = 0;
+}
+
+// Maybe using reset at every REPL cycle is too much, check if registry is
+// leaking pointers
+unsigned int pointerRegistryLeaking() {
+    return registry.head;
 }

@@ -66,7 +66,11 @@ int main(int argc, char** argv) {
         fflush(stdout);
         // Read 1 vaild s-expr
         Box ret = Read();
+        // TODO: remove temporary leaky check
+        if (pointerRegistryLeaking()) fail(SIGNAL_POINTER_REGISTRY_LEAKING);
         ret = Eval(ret);
+        // TODO: remove temporary leaky check
+        if (pointerRegistryLeaking()) fail(SIGNAL_POINTER_REGISTRY_LEAKING);
         Print(ret);
     }
 }
