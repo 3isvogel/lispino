@@ -97,3 +97,11 @@ void pointerRegistryPush(BoxRef boxRef);
  * @brief pop the last pointer in the registry
  */
 void pointerRegistryPop();
+
+/**
+ * @brief Reset pointer registry
+ *
+ * Empty pointer registry, this is done in specific points to prevent eventual
+ * misses
+ */
+void pointerRegistryReset();

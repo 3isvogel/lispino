@@ -4,7 +4,6 @@
 #include <utility/signals.h>
 #include <utility/log.h>
 
-#include <stdlib.h>
 #include "memory/private.h"
 #include "string.h"
 #include "utility/box.h"
@@ -139,7 +138,10 @@ BoxRef newMem(unsigned int size) {
 
 Cons* newCons() {
     // Make space for a cons
-    return (Cons*)newMem(sizeof(Cons));
+    Cons* cons = (Cons*)newMem(sizeof(Cons));
+    cons->car = boxNil();
+    cons->cdr = boxNil();
+    return cons;
 }
 
 BoxRef newRaw(unsigned int len) {
@@ -159,7 +161,7 @@ Box setRaw(BoxRef boxRef, char *string) {
     }
     memcpy(boxRef + 1, string, len+1);
     setValue(boxRef, len+1);
-    return boxNil();
+    return setBox((Value)boxRef, TAG_NIL);
 }
 
 // TODO: deref check
@@ -348,6 +350,9 @@ void pointerRegistryPush(BoxRef boxRef) {
 }
 
 void pointerRegistryPop() {
-    registry.head --;
+    if (registry.head > 0) registry.head --;
 }
 
+void pointerRegistryReset() {
+    registry.head = 0;
+}

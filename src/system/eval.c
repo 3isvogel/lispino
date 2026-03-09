@@ -4,6 +4,8 @@
 #include <memory/stack.h>
 #include <memory/heap.h>
 
+#include <string.h>
+
 // Box eval_ast(Box ast) {
 //     Cell pre, post, new_head;
 //     switch(get_tag(ast)) {
@@ -73,28 +75,129 @@
 // }
 // 
 // int frame_lvl = 0;
+//
+
+Box evalForm(BoxRef boxRef);
+
+Box evalArgs(BoxRef argsBoxRef) {
+    // If argument is not a Cons (e.g (+ . 3) return signal
+    if (getTag(argsBoxRef) != TAG_CONS) return boxSignal(SIGNAL_WRONG_TYPE);
+
+    // TODO: as in parser: this may be implemented as a first part "evalArgs"
+    //       and a second "evalArgsRecursive" which exploits tail call recursion
+    //       to have a neat and efficient recursive implementattion with less
+    //       repeated code
+    Box evaluatedHead = boxNil(),
+        evaluatedTail = boxNil(),
+        valueBox = boxNil();
+
+    // 3 Pointers to construct a list (2 + temporary value)
+    pointerRegistryPush(&evaluatedHead);
+    pointerRegistryPush(&evaluatedTail);
+    pointerRegistryPush(&valueBox);
+
+    // Set new cons as head
+    Cons* consRef = newCons();
+    evaluatedHead = setBox((Value) consRef, TAG_CONS);
+    evaluatedTail = evaluatedHead;
+
+    // Set value of first cons
+    valueBox = ((Cons*)getValue(argsBoxRef))->car;
+    valueBox = evalForm(&valueBox);
+    // End on signal
+    if (getTag(&valueBox) == TAG_SIGNAL) {
+        evaluatedHead = valueBox;
+        goto evalArgsEnd;
+    }
+
+    // Add the value to result list and continue
+    ((Cons*)getValue(&evaluatedTail))->car = valueBox;
+    Tag cdrTag = getTag(&((Cons*)getValue(argsBoxRef))->cdr);
+
+    // Until list end
+    while (cdrTag == TAG_CONS) {
+        
+        // Drop reference to previous elements of the list (forward scan)
+        *argsBoxRef = ((Cons*)getValue(argsBoxRef))->cdr;
+
+        // Add cons, link it and set its car as "valueBox"
+        consRef = newCons();
+        ((Cons*)getValue(&evaluatedTail))->cdr = setBox((Value) consRef, TAG_CONS);
+        evaluatedTail = setBox((Value) consRef, TAG_CONS);
+
+        // Set value of current cons
+        valueBox = ((Cons*)getValue(argsBoxRef))->car;
+        valueBox = evalForm(&valueBox);
+        // End on signal
+        if (getTag(&valueBox) == TAG_SIGNAL) {
+            evaluatedHead = valueBox;
+            goto evalArgsEnd;
+        }
+
+        ((Cons*)getValue(&evaluatedTail))->car = valueBox;
+        cdrTag = getTag(&((Cons*)getValue(argsBoxRef))->cdr);
+    
+    }
+    ((Cons*)getValue(argsBoxRef))->cdr = boxNil();
+
+evalArgsEnd:
+    pointerRegistryPop();
+    pointerRegistryPop();
+    pointerRegistryPop();
+   
+    return evaluatedHead;
+}
 
 Box evalForm(BoxRef boxRef) {
 
-    // This box will be used as the return value
-    Box box = boxNil();
+    // Temporary tag value
+    Tag tag = getTag(boxRef);
 
-    pointerRegistryPush(&box);
+    // Symbols are solved from env
+    if (tag == TAG_SYMBOL) {
+        return getSymbol(boxRef);
+    // Cons are evaluated as:
+    //  If firs element is a symbol solve it and use it as a function / closure
+    //  use other elements as parameters
+    } else if (tag == TAG_CONS) {
+        Box functionBox = ((Cons*)getValue(boxRef))->car,
+            argumentBox = ((Cons*)getValue(boxRef))->cdr;
 
-    switch (getTag(boxRef)) {
-    case TAG_SYMBOL:
-        box = getSymbol(boxRef);
-        break;
-    // Atomic values are evaluated to the same value
-    default:
-        box = *boxRef;
+        // First element is a symbol: check if it mathces special forms
+        if (getTag(&functionBox) == TAG_SYMBOL) {
+            char* name = getRaw(functionBox);
+            // quote is pretty easy to evaluate: just return the argument
+            // without evaluation
+            if (strcmp("quote", name) == 0) {
+                if (getTag(&argumentBox) != TAG_CONS) {
+                    return boxSignal(SIGNAL_WRONG_ARGS_NUMBER);
+                }
+                return ((Cons*)getValue(&argumentBox))->car;
+            }
+            // It is a symbol, but is not a special form evaluate it
+             // functionBox = getSymbol(&functionBox);
+             // tag = getTag(&functionBox);
+
+             // // Check that symbol is defined and evaluates to a function
+             // if (tag == TAG_SIGNAL) return functionBox;
+             // if (tag != TAG_PRIMITIVE && tag != TAG_CLOSURE) return boxSignal(SIGNAL_NOT_A_FUNCTION);
+
+            pointerRegistryPush(&functionBox);
+            pointerRegistryPush(&argumentBox);
+            
+            argumentBox = evalArgs(&argumentBox);
+
+            pointerRegistryPop();
+            pointerRegistryPop();
+        }
+        todo("Implement eval");
     }
-
-    pointerRegistryPop();
-    return box;
+    return *boxRef;
 }
 
 Box Eval(Box box) {
+    pointerRegistryReset();
+
     // Register this box before doing additional processing
     pointerRegistryPush(&box);
 

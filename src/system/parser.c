@@ -12,7 +12,6 @@
 
 #include <stdio.h>
 #include <string.h>
-#include <stdlib.h>
 
 // Used by the lexer to communicate types of tokens to the parser
 #define TOKEN_TYPE_LIST \
@@ -212,6 +211,38 @@ lexerReturn:
 void readForm(BoxRef boxRef);
 void readList(BoxRef boxRef);
 
+void specialTransform(BoxRef boxRef, char* name) {
+    
+    // Copy string inside heap
+    // TODO: could skip the copy if string already inside the heap boundaries
+    unsigned int len = strlen(name);
+    BoxRef rawRef = newRaw(len);
+    *boxRef = setRaw(rawRef, name);
+    if (getTag(boxRef) != TAG_SIGNAL) {
+        setTag(boxRef, TAG_SYMBOL);
+
+        // Make a new cons, assign its car to the special symbol and save cons in
+        // boxRef
+        Cons *cons = newCons();
+        cons->car = *boxRef;
+        *boxRef = setBox((Value)cons, TAG_CONS);
+    
+        // Read value of next form
+        next();
+        Box value = boxNil();
+        pointerRegistryPush(&value);
+        readForm(&value);
+        
+        // Append it after special symbol
+        cons = newCons();
+        cons->car = value;
+        // default cdr = nil
+        ((Cons*)getValue(boxRef))->cdr = setBox((Value) cons, TAG_CONS);
+    }
+
+    pointerRegistryPop();
+}
+
 void readForm(BoxRef boxRef) {
     // Save in pointer registry for automatic update on GC
     // Every registered Box MUST be initialized to prevent unwanted behavior
@@ -243,7 +274,6 @@ void readForm(BoxRef boxRef) {
         *boxRef = setRaw(rawRef, token.text);
         // If assignment didn't fail populate box with value and tag
         if (getTag(boxRef) != TAG_SIGNAL) {
-            setValue(boxRef, (Value)rawRef);
             // Should check that the returned tag is not a signal, but since this
             // call relies under TTYPE_STRING/SYMBOL/LABEL there is no need to check
             setTag(boxRef, ttypeToTag(token.type));
@@ -257,6 +287,13 @@ void readForm(BoxRef boxRef) {
         // A form is either an atomic type or the beginning of a list
         *boxRef = boxSignal(SIGNAL_SYNTAX_ERROR);
         break; 
+
+    // Implementing other special characters
+    case TTYPE_QUOTE:
+        // Single quoatation (skips eval ~) is resolved at read time: a form " ' <exp> " is constructed as "(quote <exp>)"
+        // Keep separated implementation of special symbols transforms
+        if (strcmp(token.text, "'") == 0) specialTransform(boxRef, "quote");
+        break;
     default:
         todo("Support all symbols");
     }
@@ -321,8 +358,7 @@ void readList(BoxRef boxRef) {
 
         // Link previous Cons with the new one
         Cons* prevConsRef = (Cons*)getValue(&prev);
-        setValue(&prevConsRef->cdr, (Value) consRef);
-        setTag(&prevConsRef->cdr,   (Tag) TAG_CONS);
+        prevConsRef->cdr = setBox((Value) consRef, TAG_CONS);
 
         // Move "prev" to point to new Cons (Tag stays the same)
         setValue(&prev, (Value) consRef);
@@ -361,6 +397,7 @@ readListEnd:
 }
 
 Box Read() {
+    pointerRegistryReset();
 
     Box box = boxNil();
     next();

@@ -7,6 +7,9 @@
 #pragma once
 
 #include "box.h"
+#include "log.h"
+#include <memory/mem.h>
+#include <stdlib.h>
 
 // All signals hava a name and a description, which is printed on fail
 
