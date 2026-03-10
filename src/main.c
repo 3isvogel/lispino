@@ -59,6 +59,7 @@ int main(int argc, char** argv) {
     }
     printsize();
     // if(!env_init()) fail(ENV_INIT_FAIL);
+    initializeEnv();
 
     while(1) {
         printf("%d > ", heapAvailableSize());

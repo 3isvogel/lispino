@@ -31,6 +31,7 @@ Cons* createStack(unsigned int size) {
     // and value in a single cons
     // car -> name, cdr -> value
     stack.data = (Cons*) halloc(sizeof(Cons) * size);
+    stack.size = size;
     return stack.data;
 }
 
@@ -154,14 +155,6 @@ Box getSymbol(BoxRef nameRef) {
     
     // The symbol is not defined
     return boxSignal(SIGNAL_SYMBOL_NOT_DEFINED);
-}
-
-void initializeEnv() {
-    logInfo("Initializing environment");
-    // for(/* All primitives in the environment*/) {
-    //    Box primitive = box(TAG_PRIMITIVE, procedure)
-    //    // defineSymbol(<name>, primitive)
-    // }
 }
 
 // void* env_init() {

@@ -3,91 +3,35 @@
 #include <utility/signals.h>
 #include <memory/stack.h>
 #include <memory/heap.h>
+#include "functions.h"
 
 #include <string.h>
-
-// Box eval_ast(Box ast) {
-//     Cell pre, post, new_head;
-//     switch(get_tag(ast)) {
-//         case SYM:
-//             return get_sym(CELL(ast));
-//             break;
-//         case CON:
-//             pre = CELL(ast);
-//             new_head = (Cell)get_mem(sizeof(Cell_t));
-//             post = new_head;
-//             post->car = Eval(pre->car);
-//             while(get_tag(pre->cdr) == CON) {
-//                 post->cdr = box(CON, (long)get_mem(sizeof(Cell_t)));
-//                 pre = CELL(pre->cdr);
-//                 post = CELL(post->cdr);
-//                 post->car = Eval(pre->car);
-//             }
-//             post->cdr = Eval(pre->cdr);
-//             return box(CON, LONG(new_head));
-//             break;
-//     }
-//     return ast;
-// }
-// 
-// Box lambda_ops(Box ast) {
-//     if(get_tag(ast) != CON)
-//         return box(ERR, WRONG_ARGS_NUMBER);
-//     int atag = get_tag(CELL(ast)->car);
-//     if(atag != NIL) {
-//         if(atag != CON)
-//             return box(ERR, LAMBDA_ARGS);
-//         Box a = CELL(ast)->car;
-//         while(get_tag(a) == CON) {
-//             if(get_tag(CELL(a)->car) != SYM)
-//                 return box(ERR, LAMBDA_ARGS);
-//             a = CELL(a)->cdr;
-//         }
-//     }
-//     return box(CLO, get_val(ast));
-// }
-// 
-// #include <stdio.h>
-// 
-// Box def_ops(Box ast) {
-//     Cell cc, tmp, sym;
-//     if(get_tag(ast) != CON)
-//         return box(ERR, WRONG_ARGS_NUMBER);
-//     switch(get_tag((cc = CELL(ast))->car)) {
-//         case SYM:
-//             sym = CELL(cc->car);
-//             if(get_tag(cc->cdr) != CON)
-//                 return box(ERR, WRONG_ARGS_NUMBER);
-//             ast = Eval(CELL(cc->cdr)->car);
-//             if(get_tag(ast) == ERR) return ast;
-//             break;
-//         case CON:
-//             sym = CELL(CELL(cc->car)->car);
-//             tmp = (Cell)get_mem(sizeof(Cell_t));
-//             tmp->car = CELL(cc->car)->cdr;
-//             tmp->cdr = cc->cdr;
-//             ast = lambda_ops(box(CON, LONG(tmp)));
-//             break;
-//         default:
-//             return box(ERR, WRONG_ARGUMENTS);
-//     }
-//     return define_sym(sym, ast);
-// }
-// 
-// int frame_lvl = 0;
-//
 
 // Given a list of evaluated elements: apply the first argument (function) to the
 // rest of the arguments
 Box applyList(BoxRef boxRef) {
+
+    // Skip apply if it's a signal
+    if (getTag(boxRef) == TAG_SIGNAL)
+        return *boxRef;
 
     // functionBox contains the function to apply
     Box functionBox = ((Cons*)getValue(boxRef))->car;
     // boxRef contains instead
         *boxRef     = ((Cons*)getValue(boxRef))->cdr;
 
-    Tag tag = getTag(&functionBox);
-    if (tag != TAG_PRIMITIVE && tag != TAG_CLOSURE) return boxSignal(SIGNAL_NOT_A_FUNCTION);
+    Tag functionTag = getTag(&functionBox);
+    if (functionTag == TAG_PRIMITIVE) {
+        // Primitives are c functions: therefore they are static, don't get
+        // moved around
+        Function primitiveFunction = (Function) getValue(&functionBox);
+        primitiveFunction(boxRef, *boxRef);
+        return *boxRef;
+    } else if (functionTag == TAG_CLOSURE) {
+    // Trying to apply something that is not a primitive or a closure
+    } else {
+        return boxSignal(SIGNAL_NOT_A_FUNCTION);
+    }
 
     return boxNil();
 }
@@ -181,33 +125,27 @@ void evalForm(BoxRef boxRef) {
         Box functionBox = ((Cons*)getValue(boxRef))->car,
             argumentBox = ((Cons*)getValue(boxRef))->cdr;
 
-        // First element is a symbol: check if it mathces special forms
-        if (getTag(&functionBox) == TAG_SYMBOL) {
-            char* name = getRaw(functionBox);
-            // quote is pretty easy to evaluate: just return the argument
-            // without evaluation
-            if (strcmp("quote", name) == 0) {
-                if (getTag(&argumentBox) != TAG_CONS) {
-                    *boxRef = boxSignal(SIGNAL_WRONG_ARGS_NUMBER);
-                    return;
-                }
-                *boxRef = ((Cons*)getValue(&argumentBox))->car;
-                return;
-            }
-            // First element is a symbol, but is not a special form: evaluate
-            // all elements of the list, invalidates functionBox and argumentBox
-            // but they are no longer needed: next step is to apply function to
-            // arguments
-            //
-            // boxRef is now referencing a list of evaluated values
-            evalList(boxRef);
-            if (getTag(boxRef) == TAG_SIGNAL) return;
-            *boxRef = applyList(boxRef);
-            if (getTag(boxRef) == TAG_SIGNAL) return;
-            
+        // Handle special forms
+        Function specialForm;
+        if (getTag(&functionBox) == TAG_SYMBOL && (specialForm = matchSpecialForm(getRaw(functionBox)))) {
+            // NOTE: specialForm MUST push pointer to registry if allocate memory
+            return specialForm(boxRef, argumentBox);
         }
-        todo("Implement eval");
+        // First element is not not associated to a special form: evaluate all
+        // elements of the list and apply them as (function arg arg arg ...)
+        // This invalidates functionBox and argumentBox, but they are no longer
+        // needed: next step is to apply function to arguments
+        //
+        // boxRef is now referencing a list of evaluated values
+        evalList(boxRef);
+        if (getTag(boxRef) == TAG_SIGNAL) return;
+        *boxRef = applyList(boxRef);
+        if (getTag(boxRef) == TAG_SIGNAL) return;
+            
     }
+    
+    // If neither a symbol nor a cons: just return the value (atomics gets
+    // evaluated to the same value)
 }
 
 Box Eval(Box box) {

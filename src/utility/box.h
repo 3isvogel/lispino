@@ -21,7 +21,10 @@ X(STRING) \
 X(SIGNAL)
 
 #define X(x) TAG_##x,
-typedef enum {
+typedef enum
+// TODO: Consider if it's oki
+__attribute__((__packed__))
+{
     TAG_LIST
     TAG_SIZE
 } Tag;
@@ -43,9 +46,14 @@ __attribute__((__packed__))
     // Doesn't really matter which type this has, used as a mask
     Tag tag;
 } Box;
+
 // Abstract pointers when working outside of heap, always perform a boundary
 // check to make sure that the reference lays withing machine's heap
 typedef Box *BoxRef;
+
+// Define type Function as any function pointer that accepts a BoxRef as an
+// argument and returns a box
+typedef void (*Function)(BoxRef, Box);
 
 // A cons contains two boxes: a car and a cdr
 typedef struct {

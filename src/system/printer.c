@@ -43,6 +43,9 @@ void innerPrint(Box box) {
     case TAG_NIL:
         printf("nil");
         break;
+    case TAG_PRIMITIVE:
+        printf("<pri@%p>", (void*)getValue(&box));
+        break;
     default:
         printf("%d", (int) getValue(&box));
         break;
