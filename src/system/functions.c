@@ -137,21 +137,41 @@ void initializeEnv() {
 ////////////////////////////////////////////////////////////////////////////////
 
 void primitiveCar(BoxRef retBoxRef, Box argsBox) {
-    // Argument is not a cons -> cannot call car
-    if (getTag(&argsBox) != TAG_CONS) {
-        *retBoxRef = boxSignal(SIGNAL_WRONG_ARGS_NUMBER);
-        return;
+    // Argument must be a cons, whose cdr is [anything] and car is another cons
+    //                                        ^^^^^^^^
+    //                                        Should be a Cons, but do I care?
+    if (getTag(&argsBox) == TAG_CONS) {
+        Cons* consRef = (Cons*) getValue(&argsBox);
+        // Cannot get a car from a non-cons
+        Tag tag = getTag(&consRef->car);
+        if (tag == TAG_NIL) {
+            *retBoxRef = boxNil();
+            return;
+        } else if (tag == TAG_CONS) {
+            *retBoxRef = ((Cons*)getValue(&consRef->car))->car;
+            return;
+        }
     }
-    Cons* consRef = (Cons*) getValue(&argsBox);
-    *retBoxRef = consRef->car;
+    *retBoxRef = boxSignal(SIGNAL_WRONG_ARGUMENTS);
+    return;
 }
 
 void primitiveCdr(BoxRef retBoxRef, Box argsBox) {
-    // Argument is not a cons -> cannot call car
-    if (getTag(&argsBox) != TAG_CONS) {
-        *retBoxRef = boxSignal(SIGNAL_WRONG_ARGS_NUMBER);
-        return;
+    // Argument must be a cons, whose cdr is [anything] and car is another cons
+    //                                        ^^^^^^^^
+    //                                        Should be a Cons, but do I care?
+    if (getTag(&argsBox) == TAG_CONS) {
+        Cons* consRef = (Cons*) getValue(&argsBox);
+        // Cannot get a car from a non-cons
+        Tag tag = getTag(&consRef->car);
+        if (tag == TAG_NIL) {
+            *retBoxRef = boxNil();
+            return;
+        } else if (tag == TAG_CONS) {
+            *retBoxRef = ((Cons*)getValue(&consRef->car))->cdr;
+            return;
+        }
     }
-    Cons* consRef = (Cons*) getValue(&argsBox);
-    *retBoxRef = consRef->cdr;
+    *retBoxRef = boxSignal(SIGNAL_WRONG_ARGUMENTS);
+    return;
 }
