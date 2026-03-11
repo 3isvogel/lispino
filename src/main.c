@@ -1,12 +1,12 @@
-#include <utility/signals.h>
 #include <utility/log.h>
+#include <utility/signals.h>
 
 #include <memory/mem.h>
-#include <memory/stack.h>
 #include <memory/heap.h>
+#include <memory/stack.h>
 
-#include <system/parser.h>
 #include <system/eval.h>
+#include <system/parser.h>
 #include <system/printer.h>
 
 #include <stdio.h>

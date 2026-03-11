@@ -9,6 +9,11 @@
 unsigned int hash(char* string, unsigned int len);
 
 /**
+ * @brief Initialize random seed
+ */
+void randSeed();
+
+/**
  * @brief Returns the biggest prime number smaller than n
  *
  * NOTE: this is a stupid function

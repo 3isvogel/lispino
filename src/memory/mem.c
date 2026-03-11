@@ -8,6 +8,7 @@
 #include "heap.h"
 
 #include <utility/log.h>
+#include <utility/hash.h>
 
 #include <system/parser.h>
 
@@ -30,6 +31,7 @@ const unsigned int MIN_RAW_MAP_LEN = DEFAULT_MIN_RAW_MAP_LEN;
  */
 int createMemory() {
     logDebug("Creating memory...");
+    randSeed();
     return createParser(TOKEN_BUFFER_MAX_LEN)
         && createStack(STACK_MAX_LEN)
         && createPointerRegistry(POINTER_REGISTRY_MAX_LEN)

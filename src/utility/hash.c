@@ -12,6 +12,8 @@
 // https://github.com/rurban/smhasher/blob/master/MurmurHash2.cpp
 
 #include <stdint.h>
+#include <stdlib.h>
+#include "log.h"
 
 #if defined(_MSC_VER)
 #define BIG_CONSTANT(x) (x)
@@ -27,6 +29,12 @@ static inline unsigned int MurmurHash2 ( const void * key, int len, uint32_t see
 unsigned int hash(char* string, unsigned int len) {
     // TODO: should I inject a seed?
     return MurmurHash2(string, len, 0);
+}
+
+static uint32_t seed;
+
+void randSeed() {
+    seed = arc4random();
 }
 
 static inline unsigned int MurmurHash2 ( const void * key, int len, uint32_t seed ) {
