@@ -120,3 +120,36 @@ static inline Box boxNil() {
  * @return 
  */
 char* strTag(Tag tag);
+
+
+/**
+ * @brief Returns the car of a box referencing a cons
+ *
+ * @param boxRef 
+ * @return 
+ */
+Box getCar(BoxRef boxRef);
+
+/**
+ * @brief Returns the cdr of a box referencing a cons
+ *
+ * @param boxRef 
+ * @return 
+ */
+Box getCdr(BoxRef boxRef);
+
+/**
+ * @brief Sets the car of a box referencing a cons
+ *
+ * @param boxRef 
+ * @param value 
+ */
+void setCar(BoxRef boxRef, Box value);
+
+/**
+ * @brief Sets the cdr of a box referencinga cons
+ *
+ * @param boxRef 
+ * @param value 
+ */
+void setCdr(BoxRef boxRef, Box value);

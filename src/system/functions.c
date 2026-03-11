@@ -6,6 +6,7 @@
 #include "functions.h"
 #include "memory/heap.h"
 #include "memory/stack.h"
+#include "system/eval.h"
 #include "utility/box.h"
 #include "utility/signals.h"
 #include <stdio.h>
@@ -25,7 +26,8 @@
 
 // Define all special forms
 #define SPECIAL_FORMS_LIST  \
-X(quote, Quote)
+X(quote, Quote)             \
+X(if,    If)
 
 // Define all primitives
 #define PRIMITIVES_LIST \
@@ -90,6 +92,18 @@ Function matchSpecialForm(char* name) {
     return NULL;
 }
 
+void initializeEnv() {
+    for (unsigned int i = 0; i < PRIMITIVES_SIZE; i++) {
+        // Make symbol into raw heap memory
+        unsigned int len = strlen(primitivesMap[i].name);
+        Box* rawRef = newRaw(len);
+        setRaw(rawRef, primitivesMap[i].name);
+        Box name = setBox((Value) rawRef, TAG_SYMBOL);
+        Box definition = setBox((Value) primitivesMap[i].function, TAG_PRIMITIVE);
+        defineSymbol(name, definition);
+    }
+}
+
 // TODO: consider if using a wrapper function "applySpecialForm() that pushes
 // pointers on stack if needed
 
@@ -111,24 +125,42 @@ Function matchSpecialForm(char* name) {
 
 // "quote" special form
 void specialFormQuote(BoxRef retBoxRef, Box argsBox) {
-    if (getTag(&argsBox) != TAG_CONS) {
-        *retBoxRef = boxSignal(SIGNAL_WRONG_ARGS_NUMBER);
-        return;
-    }
-    *retBoxRef = ((Cons*)getValue(&argsBox))->car;
-    return;
-
+    *retBoxRef = getCar(&argsBox);
 }
 
-void initializeEnv() {
-    for (unsigned int i = 0; i < PRIMITIVES_SIZE; i++) {
-        // Make symbol into raw heap memory
-        unsigned int len = strlen(primitivesMap[i].name);
-        Box* rawRef = newRaw(len);
-        setRaw(rawRef, primitivesMap[i].name);
-        Box name = setBox((Value) rawRef, TAG_SYMBOL);
-        Box definition = setBox((Value) primitivesMap[i].function, TAG_PRIMITIVE);
-        defineSymbol(name, definition);
+// "if" special form
+void specialFormIf(BoxRef retBoxRef, Box argsBox) {
+
+    // Condition for the if statement
+    *retBoxRef = getCar(&argsBox);
+
+    // the subsequent element (used as return in case "true")
+    argsBox = getCdr(&argsBox);
+
+    // Evaluate retBoxRef without losing argsBox
+    pointerRegistryPush(&argsBox);
+    evalForm(retBoxRef);
+    pointerRegistryPop();
+    
+    // If signal occured in evaluation:
+    if (getTag(retBoxRef) == TAG_SIGNAL) {
+        return;
+    // True branch
+    } else if(getTag(retBoxRef) != TAG_NIL) {
+        *retBoxRef = getCar(&argsBox);
+        return evalForm(retBoxRef);
+    // False branch
+    } else {
+        Box falseBranch = getCdr(&argsBox);
+        Tag tag = getTag(&falseBranch);
+        if (tag == TAG_NIL) {
+            *retBoxRef = boxNil();
+            return;
+        } else if (tag == TAG_CONS) {
+            argsBox = getCdr(&argsBox);
+            *retBoxRef = getCar(&argsBox);
+            return evalForm(retBoxRef);
+        }
     }
 }
 
@@ -140,38 +172,14 @@ void primitiveCar(BoxRef retBoxRef, Box argsBox) {
     // Argument must be a cons, whose cdr is [anything] and car is another cons
     //                                        ^^^^^^^^
     //                                        Should be a Cons, but do I care?
-    if (getTag(&argsBox) == TAG_CONS) {
-        Cons* consRef = (Cons*) getValue(&argsBox);
-        // Cannot get a car from a non-cons
-        Tag tag = getTag(&consRef->car);
-        if (tag == TAG_NIL) {
-            *retBoxRef = boxNil();
-            return;
-        } else if (tag == TAG_CONS) {
-            *retBoxRef = ((Cons*)getValue(&consRef->car))->car;
-            return;
-        }
-    }
-    *retBoxRef = boxSignal(SIGNAL_WRONG_ARGUMENTS);
-    return;
+    *retBoxRef = getCar(&argsBox);
+    *retBoxRef = getCar(retBoxRef);
 }
 
 void primitiveCdr(BoxRef retBoxRef, Box argsBox) {
     // Argument must be a cons, whose cdr is [anything] and car is another cons
     //                                        ^^^^^^^^
     //                                        Should be a Cons, but do I care?
-    if (getTag(&argsBox) == TAG_CONS) {
-        Cons* consRef = (Cons*) getValue(&argsBox);
-        // Cannot get a car from a non-cons
-        Tag tag = getTag(&consRef->car);
-        if (tag == TAG_NIL) {
-            *retBoxRef = boxNil();
-            return;
-        } else if (tag == TAG_CONS) {
-            *retBoxRef = ((Cons*)getValue(&consRef->car))->cdr;
-            return;
-        }
-    }
-    *retBoxRef = boxSignal(SIGNAL_WRONG_ARGUMENTS);
-    return;
+    *retBoxRef = getCar(&argsBox);
+    *retBoxRef = getCdr(retBoxRef);
 }

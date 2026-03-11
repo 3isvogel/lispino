@@ -1,4 +1,5 @@
 #include "box.h"
+#include <utility/signals.h>
 
 #define X(x) #x,
 char* printableTag[TAG_SIZE] = {
@@ -32,4 +33,31 @@ Box setBox(Value value, Tag tag) {
 char* strTag(Tag tag) {
     // TODO: check boundaries?
     return printableTag[tag];
+}
+
+Box getCar(BoxRef boxRef) {
+    // Propagate signal
+    if (getTag(boxRef) == TAG_SIGNAL) {
+        return *boxRef;
+    } else if (getTag(boxRef) != TAG_CONS)
+        return boxSignal(SIGNAL_WRONG_ARGUMENTS);
+    return ((Cons*)getValue(boxRef))->car;
+}
+
+Box getCdr(BoxRef boxRef) {
+    if (getTag(boxRef) == TAG_SIGNAL) {
+        return *boxRef;
+    } else if (getTag(boxRef) != TAG_CONS)
+        return boxSignal(SIGNAL_WRONG_ARGUMENTS);
+    return ((Cons*)getValue(boxRef))->cdr;
+}
+
+void setCar(BoxRef boxRef, Box value) {
+    if (getTag(boxRef) == TAG_CONS)
+        ((Cons*)getValue(boxRef))->car = value;
+}
+
+void setCdr(BoxRef boxRef, Box value) {
+    if (getTag(boxRef) == TAG_CONS)
+        ((Cons*)getValue(boxRef))->cdr = value;
 }

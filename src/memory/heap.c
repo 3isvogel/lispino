@@ -43,20 +43,18 @@ Registry registry = (Registry) {
     .head = 0,
 };
 
-typedef struct {
-    unsigned int key;
-    BoxRef rawRef;
-} RawStringMapBucket;
 // Raw strings collision map data structure
 typedef struct {
-    RawStringMapBucket* data;
+    BoxRef *rawRefs;
+    unsigned int *keys;
     unsigned int size;
     unsigned int entries;
     unsigned int mask;
     unsigned int probe;
 } RawStringMap;
 RawStringMap rawMap = (RawStringMap) {
-    .data = NULL,
+    .rawRefs = NULL,
+    .keys = NULL,
     .size = 0,
     .mask = 0,
     .probe = 0,
@@ -418,9 +416,9 @@ unsigned int getRawStringMapSize() {
 }
 
 void destroyRawStringMap() {
-    if (rawMap.data)
-        free(rawMap.data);
-    rawMap.data = NULL;
+    if (rawMap.rawRefs) free(rawMap.rawRefs);
+    rawMap.rawRefs = NULL;
+    rawMap.keys = NULL;
     rawMap.size = 0;
     rawMap.mask = 0;
     rawMap.probe = 0;
@@ -447,16 +445,23 @@ BoxRef* createRawStringMap(unsigned int minSize) {
     rawMap.probe = primeProbe((unsigned int)(size*3/4));
     if (rawMap.probe == 0)
         fail(SIGNAL_MEM_SETUP_FAIL);
-    rawMap.data = (RawStringMapBucket*) halloc(size * sizeof(RawStringMapBucket));
+    
+    // Allocate contiguous memory, but use 2 separated arrays so I only need to
+    // wipe one of them, rawRef points to the beginning of memory up to
+    // rawRef + (size * sizeof(BoxRef))
+    // while keys points to the end of rawRefs up to
+    // keys + (size * sizeof(unsigned int));
+    rawMap.rawRefs = (BoxRef*) halloc(size * (sizeof(BoxRef) + sizeof(unsigned int)));
+    rawMap.keys = (unsigned int*) (rawMap.rawRefs + size);
     logInfo("RawStringMap size: %d probe offset: %d", size, rawMap.probe);
     rawMap.size = size;
     rawMap.mask = size - 1;
-    return (BoxRef*)rawMap.data;
+    return (BoxRef*)rawMap.rawRefs;
 }
 
 void cleanRawStringMap() {
     rawMap.entries = 0;
-    memset(rawMap.data, 0, rawMap.size * sizeof(RawStringMapBucket));
+    memset(rawMap.rawRefs, 0, rawMap.size * sizeof(BoxRef));
 }
 
 /**
@@ -480,18 +485,21 @@ unsigned int rawEq(BoxRef rawRefA, BoxRef rawRefB) {
 BoxRef getRawStringMap(BoxRef rawRef) {
     char *string = (char*)(rawRef+1);
     unsigned int len = getValue(rawRef);
-    unsigned int key = hash(string, len) & rawMap.mask;
+    unsigned int key = hash(string, len);
     // Scan N (number of entries presents) bucket, no need to scan more
-    for (unsigned int i = 0, probe = key
+    // 
+    // Use key as key value, probe as index access
+    for (unsigned int i = 0, probe = key & rawMap.mask
             ; i < rawMap.entries
             ; i++, probe = (probe + rawMap.probe) & rawMap.mask) {
         // If bucket has empty ref -> not exists in hashmap
-        if (rawMap.data[probe].rawRef == NULL)
-            return NULL;
+        if (rawMap.rawRefs[probe] == NULL) return NULL;
         // If both key match and the rawString is the same (either by addres
         // or value) returns the found
-        if (key == rawMap.data[key].key && rawEq(rawRef, rawMap.data[key].rawRef))
-            return rawMap.data[key].rawRef;
+        // The idea is: lazy evaluation will skip most rawEq
+        // (assuming key != (key & mask), which should be the case)
+        if (key == rawMap.keys[probe] && rawEq(rawRef, rawMap.rawRefs[probe]))
+            return rawMap.rawRefs[probe];
     }
     return NULL;
 }
@@ -505,16 +513,15 @@ void insertRawStringMap(BoxRef rawRef) {
     char *string = (char*)(rawRef+1);
     unsigned int len = getValue(rawRef);
     if (rawMap.entries == rawMap.size) fail(SIGNAL_RAW_MAP_FULL);
-    for (unsigned int i = 0, key = hash(string, len) & rawMap.mask
+    unsigned int key = hash(string, len);
+    for (unsigned int i = 0, probe = key & rawMap.mask
             // Necessary + 1 as otherwise I will never do this
             ; i < rawMap.entries + 1
-            ; i++, key = (key + rawMap.probe) & rawMap.mask) {
+            ; i++, probe = (probe + rawMap.probe) & rawMap.mask) {
         // Empty bucket, populate it and return
-        if (rawMap.data[key].rawRef == NULL) {
-            rawMap.data[key] = (RawStringMapBucket) {
-                .key = key,
-                .rawRef = rawRef,
-            };
+        if (rawMap.rawRefs[probe] == NULL) {
+            rawMap.rawRefs[probe] = rawRef;
+            rawMap.keys[probe] = key;
             rawMap.entries ++;
             return;
         }
