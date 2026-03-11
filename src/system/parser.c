@@ -105,7 +105,7 @@ char* createParser(unsigned int bufferSize) {
  */
 void putch(char character) {
     if (token.len == token.bufferSize) {
-        logError("Token: %.*s", token.len, token.text);
+        logError("; Token too long: %.*s", token.len, token.text);
         fail(SIGNAL_TOKEN_TOO_LONG);
     }
     token.text[token.len ++ ] = character;
@@ -154,12 +154,12 @@ void next() {
             cc = getchar();
             while (cc != '"'){
                 if (cc != '\\') {
-                    putchar(cc);
+                    putch(cc);
                 } else {
                     cc = getchar();
                     static const char *escapeChars = "abtnvfr";
                     const char *escapedLetter = strchr(escapeChars, cc);
-                    putchar(escapedLetter ? escapedLetter - escapeChars : cc);
+                    putch(escapedLetter ? escapedLetter - escapeChars : cc);
                 }
                 cc = getchar();
             }
@@ -200,6 +200,8 @@ lexerConsumeAndReturn:
     cc = getchar();
 lexerReturn:
     putch('\0');
+    token.len --;
+    // Putch increases size (makes '\0' part of the length)
     return;
 }
 
