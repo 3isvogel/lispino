@@ -43,11 +43,14 @@ void printsize() {
     totalSize = tokenBufferSize + stackSize + heapSize + pointerRegistrySize;
 
     logInfo("Memory         size size");
-    logInfo("Token buffer:  %5d (%dK)", tokenBufferSize, tokenBufferSize/K);
-    logInfo("Symbols stack: %5d (%dK)", stackSize, stackSize/K);
-    logInfo("Heaps:         %5d (%dK)", heapSize, (heapSize/K));
-    logInfo("Symbols stack: %5d (%dK)", pointerRegistrySize, pointerRegistrySize/K);
-    logInfo("Total:         %5d (%dK)", totalSize, totalSize/K);
+    logInfo("Token buffer:  %5dB (%dK)", tokenBufferSize, tokenBufferSize/K);
+    logInfo("Symbols stack: %5dB (%dK)", stackSize, stackSize/K);
+    logInfo("Heaps:         %5dB (%dK)", heapSize, (heapSize/K));
+    logInfo("Symbols stack: %5dB (%dK)", pointerRegistrySize, pointerRegistrySize/K);
+    logInfo("Total:         %5dB (%dK)", totalSize, totalSize/K);
+    logInfo("");
+    logInfo("Box size:      %5dB", sizeof(Box));
+    logInfo("Cons cell size:%5dB", sizeof(Cons));
 }
 
 int main(int argc, char** argv) {
