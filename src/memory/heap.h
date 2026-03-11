@@ -110,3 +110,8 @@ void pointerRegistryReset();
  * @brief returns a positive value if pointerRegitry is leaking
  */
 unsigned int pointerRegistryLeaking();
+
+/**
+ * @brief Returns the size of RawString map
+ */
+unsigned int getRawStringMapSize();

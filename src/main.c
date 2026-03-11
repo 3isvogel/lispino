@@ -33,24 +33,27 @@ void printsize() {
         stackSize,
         heapSize,
         pointerRegistrySize,
+        rawMapSize,
         totalSize;
     tokenBufferSize = (TOKEN_BUFFER_MAX_LEN+1) * sizeof(char);
     stackSize = (STACK_MAX_LEN) * sizeof(Cons);
     heapSize = (HEAP_MAX_LEN) * sizeof(Box) * 2;
+    rawMapSize = getRawStringMapSize() * sizeof(BoxRef);
     pointerRegistrySize = (POINTER_REGISTRY_MAX_LEN) * sizeof(Box*);
 
     // Using two heaps: copy GC
-    totalSize = tokenBufferSize + stackSize + heapSize + pointerRegistrySize;
+    totalSize = tokenBufferSize + stackSize + heapSize + pointerRegistrySize + rawMapSize;
 
-    logInfo("Memory         size size");
-    logInfo("Token buffer:  %5dB (%dK)", tokenBufferSize, tokenBufferSize/K);
-    logInfo("Symbols stack: %5dB (%dK)", stackSize, stackSize/K);
-    logInfo("Heaps:         %5dB (%dK)", heapSize, (heapSize/K));
-    logInfo("Symbols stack: %5dB (%dK)", pointerRegistrySize, pointerRegistrySize/K);
-    logInfo("Total:         %5dB (%dK)", totalSize, totalSize/K);
+    logInfo("%16s %10s %10s", "Memory", "size (B)", "size (kB)");
+    logInfo("%16s %10d %10d", "Token buffer:", tokenBufferSize, tokenBufferSize/K);
+    logInfo("%16s %10d %10d", "Symbols stack:", stackSize, stackSize/K);
+    logInfo("%16s %10d %10d", "Heaps:", heapSize, (heapSize/K));
+    logInfo("%16s %10d %10d", "Symbols stack:", pointerRegistrySize, pointerRegistrySize/K);
+    logInfo("%16s %10d %10d", "Raw String Map:", rawMapSize, rawMapSize/K);
+    logInfo("%16s %10d %10d", "Total:", totalSize, totalSize/K);
     logInfo("");
-    logInfo("Box size:      %5dB", sizeof(Box));
-    logInfo("Cons cell size:%5dB", sizeof(Cons));
+    logInfo("%16s %10d", "Box:", sizeof(Box));
+    logInfo("%16s %10d", "Cons cell:", sizeof(Cons));
 }
 
 int main(int argc, char** argv) {
@@ -60,6 +63,7 @@ int main(int argc, char** argv) {
     if (createMemory() == 0) {
         fail(SIGNAL_MEM_SETUP_FAIL);
     }
+
     printsize();
     // if(!env_init()) fail(ENV_INIT_FAIL);
     initializeEnv();

@@ -15,11 +15,13 @@
 #define DEFAULT_POINTER_REGISTRY_MAX_LEN    128
 #define DEFAULT_TOKEN_BUFFER_MAX_LEN        128
 #define DEFAULT_STACK_MAX_LEN               128
+#define DEFAULT_MIN_RAW_MAP_LEN             DEFAULT_STACK_MAX_LEN            
 
 const unsigned int HEAP_MAX_LEN = DEFAULT_HEAP_MAX_LEN;
 const unsigned int POINTER_REGISTRY_MAX_LEN = DEFAULT_POINTER_REGISTRY_MAX_LEN;
 const unsigned int TOKEN_BUFFER_MAX_LEN = DEFAULT_TOKEN_BUFFER_MAX_LEN;
 const unsigned int STACK_MAX_LEN = DEFAULT_STACK_MAX_LEN;
+const unsigned int MIN_RAW_MAP_LEN = DEFAULT_MIN_RAW_MAP_LEN;
 
 /**
  * @brief Create data structures
@@ -32,6 +34,7 @@ int createMemory() {
         && createStack(STACK_MAX_LEN)
         && createPointerRegistry(POINTER_REGISTRY_MAX_LEN)
         && createHeap(HEAP_MAX_LEN);
+        
 }
 
 /**

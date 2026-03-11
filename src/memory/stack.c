@@ -5,6 +5,7 @@
 #include "private.h"
 #include "stack.h"
 #include <memory/mem.h>
+#include <memory/heap.h>
 
 #include <string.h>
 
@@ -132,7 +133,7 @@ Box getSymbol(BoxRef nameRef) {
         return boxSignal(SIGNAL_WRONG_TYPE);
     }
     // If a string is saved as X.AAA.ssss... just move to the next Box pointer
-    char* rawName = (char*)(((BoxRef)getValue(nameRef)) + 1);
+    char* rawName = getRaw(*nameRef);
 
     // Search from the inner to the outer frame, until found or last frame is
     // reached
@@ -143,8 +144,7 @@ Box getSymbol(BoxRef nameRef) {
             // Extract raw string, no need to check the type of this as I made it
             // impossible before to add any non-string symbol, if all additions are
             // done through this function there will never be non-string symbols
-            char* currentName = ((char*)getValue(&(cons->car)))
-                                + sizeof(Box);
+            char* currentName = getRaw(cons->car);
     
             // Really slow symbol search
             if(strcmp(rawName, currentName) == 0) {
@@ -154,6 +154,7 @@ Box getSymbol(BoxRef nameRef) {
     } while(frameOuter(&frame));
     
     // The symbol is not defined
+    logError("; Symbol not defined: %s", rawName);
     return boxSignal(SIGNAL_SYMBOL_NOT_DEFINED);
 }
 

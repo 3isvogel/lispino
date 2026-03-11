@@ -11,7 +11,7 @@ SIGNAL_LIST
 
 void _lineFail(Signal signal, char* file, int line) {
     // needs explicit function to pass file and line to function
-    logPrint(LOG_LEVEL_ERROR, file, line, "Failing with signal %2d: %s", signal, printableSignals[signal]);
+    logPrint(LOG_LEVEL_ERROR, file, line, "Fail with signal %2d: %s", signal, printableSignals[signal]);
     // Clean all allocated memory
     destroyMemory();
     exit(signal);

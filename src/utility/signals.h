@@ -35,6 +35,7 @@ X(TOKEN_TOO_LONG, "")       \
 X(HEAP_FULL, "")            \
 X(STACK_FULL, "")           \
 X(POINTER_REGISTRY_FULL, "")\
+X(RAW_MAP_FULL, "")         \
 X(SYNTAX_ERROR, "")         \
 X(BAD_REFERENCE, "")        \
 X(FAIL_RAWMEMORY_CHECK, "") \

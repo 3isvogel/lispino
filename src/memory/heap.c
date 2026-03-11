@@ -3,12 +3,14 @@
 #include <memory/stack.h>
 #include <utility/signals.h>
 #include <utility/log.h>
+#include <utility/hash.h>
 
 #include "memory/private.h"
 #include "string.h"
 #include "utility/box.h"
 
-#define HEAP_TRESHOLD_GC ((unsigned int)((HEAP_MAX_LEN * sizeof(Box)) - 500))
+// TODO: decide a good treshold
+#define HEAP_TRESHOLD_GC ((unsigned int)((HEAP_MAX_LEN * sizeof(Box))*3/4))
 
 typedef struct {
     Box* active;
@@ -41,6 +43,26 @@ Registry registry = (Registry) {
     .head = 0,
 };
 
+typedef struct {
+    unsigned int key;
+    BoxRef rawRef;
+} RawStringMapBucket;
+// Raw strings collision map data structure
+typedef struct {
+    RawStringMapBucket* data;
+    unsigned int size;
+    unsigned int entries;
+    unsigned int mask;
+    unsigned int probe;
+} RawStringMap;
+RawStringMap rawMap = (RawStringMap) {
+    .data = NULL,
+    .size = 0,
+    .mask = 0,
+    .probe = 0,
+    .entries = 0,
+};
+
 void validateRef(BoxRef ref) {
     if (ref < heap.base || ref >= (heap.base + (heap.size*2))) {
         logInfo("Bad reference: %p <= %p <= %p", heap.base, ref, heap.base + (heap.size * 2));
@@ -70,12 +92,10 @@ Box follow(BoxRef boxRef) {
 }
 
 /**
- * @brief Check if the argument references a moved box
- *
- * @param box 
- * @return A reference to the new object if moved, null otherwise
+ * @brief Deallocate rawstring map memory if it's allocated
  */
-BoxRef checkMoved(BoxRef box);
+void destroyRawStringMap();
+BoxRef* createRawStringMap(unsigned int minSize);
 
 void destroyHeap() {
     free(heap.base);
@@ -93,7 +113,7 @@ Box* createHeap(unsigned int size) {
     // by data[0] and data[1], 
     // during GC will refer to these as
     // data[active] and data[inactive]
-    //
+    createRawStringMap(STACK_MAX_LEN);
     // Use first half as the active
     heap.base = (Box*) halloc(size * 2 * sizeof(Box));
     heap.active = heap.base;
@@ -160,7 +180,6 @@ Box setRaw(BoxRef boxRef, char *string) {
         return boxSignal(SIGNAL_FAIL_RAWMEMORY_CHECK);
     }
     memcpy(boxRef + 1, string, len+1);
-    setValue(boxRef, len+1);
     return setBox((Value)boxRef, TAG_NIL);
 }
 
@@ -171,6 +190,22 @@ char* getRaw(Box box) {
 }
 
 void moveBox(Box* box);
+void cleanRawStringMap();
+
+/**
+ * @brief Check if rawRef exists inside rawStringMap
+ *
+ * @param rawRef 
+ * @return 
+ */
+BoxRef getRawStringMap(BoxRef rawRef);
+
+/**
+ * @brief Insert rawRef into rawStringMap
+ *
+ * @param rawRef 
+ */
+void insertRawStringMap(BoxRef rawRef);
 
 void gc() {
     logDebug("Called GC: used %d", heap.requested);
@@ -182,6 +217,9 @@ void gc() {
     heap.active = heap.inactive;
     heap.inactive = t;
     heap.head = 0;
+
+    // Clean raw string map for raw string deduplication
+    cleanRawStringMap();
 
     Frame frame = frameCurrent();
 
@@ -315,9 +353,21 @@ void moveBox(BoxRef box) {
                 setValue(box, (Value)newRef);
                 return;
             }
-            // Otherwise move the string to the new position
+            // Before copying the raw to the new heap: check that a raw with the
+            // same value doesn't exist already Otherwise simply point the
+            // string to the new position
+
+            // If the string already exists simply update the reference
+            if ((newRef = getRawStringMap((BoxRef)getValue(box)))) {
+                setValue(box, (Value)newRef);
+                return;
+            }
+            // If the string does not exist in the map copy it into the new heap
             newRef = moveRaw((BoxRef) getValue(box));
             setValue(box, (Value)newRef);
+            // And add it to the map
+            insertRawStringMap(newRef);
+            return;
         default:
             // For all atomic values there is no need to copy them, they reside
             // in the cons itself and will be copied
@@ -360,4 +410,119 @@ void pointerRegistryReset() {
 // leaking pointers
 unsigned int pointerRegistryLeaking() {
     return registry.head;
+}
+
+
+unsigned int getRawStringMapSize() {
+    return rawMap.size;
+}
+
+void destroyRawStringMap() {
+    if (rawMap.data)
+        free(rawMap.data);
+    rawMap.data = NULL;
+    rawMap.size = 0;
+    rawMap.mask = 0;
+    rawMap.probe = 0;
+}
+
+BoxRef* createRawStringMap(unsigned int minSize) {
+
+    destroyRawStringMap();
+
+    unsigned int halfWordSize = (int)(sizeof(BoxRef) * 8 / 2);
+    // I don't want to round up, I want to go to the next power of 2
+    unsigned int size = minSize;// << 1;
+
+    // Copied from
+    // https://graphics.stanford.edu/%7Eseander/bithacks.html#RoundUpPowerOf2    
+    // size --;
+    for (unsigned int i = 1; i < halfWordSize; i *= 2) {
+        size |= size >> i;
+    }
+    size ++;
+
+    if (size == 0)
+        fail(SIGNAL_MEM_SETUP_FAIL);
+    rawMap.probe = primeProbe((unsigned int)(size*3/4));
+    if (rawMap.probe == 0)
+        fail(SIGNAL_MEM_SETUP_FAIL);
+    rawMap.data = (RawStringMapBucket*) halloc(size * sizeof(RawStringMapBucket));
+    logInfo("RawStringMap size: %d probe offset: %d", size, rawMap.probe);
+    rawMap.size = size;
+    rawMap.mask = size - 1;
+    return (BoxRef*)rawMap.data;
+}
+
+void cleanRawStringMap() {
+    rawMap.entries = 0;
+    memset(rawMap.data, 0, rawMap.size * sizeof(RawStringMapBucket));
+}
+
+/**
+ * @brief Compare two rawRef
+ *
+ * Returns 0 if they have different content, non 0 otherwise
+ *
+ * @param rawRefA 
+ * @param rawRefB 
+ * @return 
+ */
+unsigned int rawEq(BoxRef rawRefA, BoxRef rawRefB) {
+    // Same pointer: are the same
+    if (rawRefA == rawRefB) return 1;
+    // Different length: cannot be the same
+    if (getValue(rawRefA) != getValue(rawRefB)) return 0;
+    // String compare
+    return !strcmp((char*)(rawRefA+1), (char*)(rawRefB+1));
+}
+
+BoxRef getRawStringMap(BoxRef rawRef) {
+    char *string = (char*)(rawRef+1);
+    unsigned int len = getValue(rawRef);
+    unsigned int key = hash(string, len) & rawMap.mask;
+    // Scan N (number of entries presents) bucket, no need to scan more
+    for (unsigned int i = 0, probe = key
+            ; i < rawMap.entries
+            ; i++, probe = (probe + rawMap.probe) & rawMap.mask) {
+        // If bucket has empty ref -> not exists in hashmap
+        if (rawMap.data[probe].rawRef == NULL)
+            return NULL;
+        // If both key match and the rawString is the same (either by addres
+        // or value) returns the found
+        if (key == rawMap.data[key].key && rawEq(rawRef, rawMap.data[key].rawRef))
+            return rawMap.data[key].rawRef;
+    }
+    return NULL;
+}
+
+/**
+ * @brief Insert rawRef into rawstringmap
+ *
+ * @param rawRef 
+ */
+void insertRawStringMap(BoxRef rawRef) {
+    char *string = (char*)(rawRef+1);
+    unsigned int len = getValue(rawRef);
+    if (rawMap.entries == rawMap.size) fail(SIGNAL_RAW_MAP_FULL);
+    for (unsigned int i = 0, key = hash(string, len) & rawMap.mask
+            // Necessary + 1 as otherwise I will never do this
+            ; i < rawMap.entries + 1
+            ; i++, key = (key + rawMap.probe) & rawMap.mask) {
+        // Empty bucket, populate it and return
+        if (rawMap.data[key].rawRef == NULL) {
+            rawMap.data[key] = (RawStringMapBucket) {
+                .key = key,
+                .rawRef = rawRef,
+            };
+            rawMap.entries ++;
+            return;
+        }
+    }
+    // NOTE: I know this is not the correct implementation: multiple inserts
+    //       should discard one of the two values (in this case preserve the one
+    //       already present and discard the latter, but I will only call this
+    //       insert after the get, so I am sure the value is not already in the
+    //       map, to be corret I should add a check that the value already
+    //       exists and discard it
 }

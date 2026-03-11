@@ -32,13 +32,15 @@ void innerPrint(Box box) {
         printf(")");
         break;
     case TAG_STRING:
+        printf("\"%s\"", getRaw(box));
+        break;
     case TAG_SYMBOL:
     case TAG_LABEL:
         // Get the raw content of a string type
         printf("%s", getRaw(box));
         break;
     case TAG_SIGNAL:
-        fprintf(stderr, ";" " " SET2E(BOLD_CODE, FG(RED_CODE)) "ERROR" RESET " Returned with signal %2d: %s", (Signal)getValue(&box), strSignal(getValue(&box)));
+        fprintf(stderr, ";" " " SET2E(BOLD_CODE, FG(RED_CODE)) "SIGNAL %2d" RESET ": %s", (Signal)getValue(&box), strSignal(getValue(&box)));
         break;
     case TAG_NIL:
         printf("nil");
