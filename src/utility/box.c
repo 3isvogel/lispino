@@ -36,20 +36,22 @@ char* strTag(Tag tag) {
 }
 
 Box getCar(BoxRef boxRef) {
+    Tag tag = getTag(boxRef);
     // Propagate signal
-    if (getTag(boxRef) == TAG_SIGNAL) {
+    if (tag == TAG_SIGNAL) {
         return *boxRef;
-    } else if (getTag(boxRef) != TAG_CONS)
+    } else if (tag != TAG_CONS && tag != TAG_CLOSURE) {
         return boxSignal(SIGNAL_WRONG_ARGUMENTS);
-    return ((Cons*)getValue(boxRef))->car;
+    } return ((Cons*)getValue(boxRef))->car;
 }
 
 Box getCdr(BoxRef boxRef) {
-    if (getTag(boxRef) == TAG_SIGNAL) {
+    Tag tag = getTag(boxRef);
+    if (tag == TAG_SIGNAL) {
         return *boxRef;
-    } else if (getTag(boxRef) != TAG_CONS)
+    } else if (tag != TAG_CONS && tag != TAG_CLOSURE) {
         return boxSignal(SIGNAL_WRONG_ARGUMENTS);
-    return ((Cons*)getValue(boxRef))->cdr;
+    } return ((Cons*)getValue(boxRef))->cdr;
 }
 
 void setCar(BoxRef boxRef, Box value) {

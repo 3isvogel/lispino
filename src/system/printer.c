@@ -48,6 +48,21 @@ void innerPrint(Box box) {
     case TAG_PRIMITIVE:
         printf("<pri@%p>", (void*)getValue(&box));
         break;
+    case TAG_CLOSURE:
+        printf("[(lambda ");
+        // If a closure exists I know it's well formed
+        box = getCar(&box);
+        if(getTag(&box) == TAG_CONS) {
+            innerPrint(getCar(&box));
+            box = getCdr(&box);
+        }
+        while (getTag(&box) == TAG_CONS) {
+            printf(" ");
+            innerPrint(getCar(&box));
+            box = getCdr(&box);
+        }
+        printf(")]");
+        break;
     default:
         printf("%d", (int) getValue(&box));
         break;

@@ -28,7 +28,8 @@
 #define SPECIAL_FORMS_LIST  \
 X(quote,    Quote)          \
 X(if,       If)             \
-X(do,       Do)
+X(do,       Do)             \
+X(lambda,   Lambda)
 
 // Define all primitives
 #define PRIMITIVES_LIST     \
@@ -206,6 +207,34 @@ void specialFormDo(BoxRef retBoxRef, Box argsBox) {
     }
 
     return evalForm(retBoxRef);
+}
+
+void specialFormLambda(BoxRef retBoxRef, Box argsBox) {
+    // A closure (lambda) must be a cons, whic car is a lst of symbols (env),
+    // and the cdr must be a cons (function body), lambdas will act as if all
+    // statements are inside a (do) statement
+    Box cdr = getCdr(&argsBox);
+    if(getTag(&argsBox) != TAG_CONS || (getTag(&cdr) != TAG_CONS && getTag(&cdr) != TAG_NIL)) {
+        *retBoxRef = boxSignal(SIGNAL_WRONG_ARGUMENTS);
+        return;
+    }
+    // A closure is but a cons which is interpreted as a call, in fact, I might
+    // try to get rid of the closure tag and just use cons
+    *retBoxRef = argsBox;
+    setTag(retBoxRef, TAG_CLOSURE);
+    Box iter = getCar(&argsBox);
+    while (getTag(&iter) == TAG_CONS) {
+        Box car = getCar(&iter);
+        if (getTag(&car) != TAG_SYMBOL) {
+            *retBoxRef = boxSignal(SIGNAL_WRONG_ARGUMENTS);
+            return;
+        }
+        iter = getCdr(&iter);
+    }
+    if (getTag(&iter) != TAG_NIL) {
+        *retBoxRef = boxSignal(SIGNAL_WRONG_ARGUMENTS);
+        return;
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
