@@ -44,16 +44,16 @@ void printsize() {
     // Using two heaps: copy GC
     totalSize = tokenBufferSize + stackSize + heapSize + pointerRegistrySize + rawMapSize;
 
-    logInfo("%16s %10s %10s", "Memory", "size (B)", "size (kB)");
-    logInfo("%16s %10d %10d", "Token buffer:", tokenBufferSize, tokenBufferSize/K);
-    logInfo("%16s %10d %10d", "Symbols stack:", stackSize, stackSize/K);
-    logInfo("%16s %10d %10d", "Heaps:", heapSize, (heapSize/K));
-    logInfo("%16s %10d %10d", "Symbols stack:", pointerRegistrySize, pointerRegistrySize/K);
-    logInfo("%16s %10d %10d", "Raw String Map:", rawMapSize, rawMapSize/K);
-    logInfo("%16s %10d %10d", "Total:", totalSize, totalSize/K);
+    logInfo("%18s %10s %10s", "Memory", "size (B)", "size (kB)");
+    logInfo("%18s %10d %10d", "Token buffer:", tokenBufferSize, tokenBufferSize/K);
+    logInfo("%18s %10d %10d", "Symbols stack:", stackSize, stackSize/K);
+    logInfo("%18s %10d %10d", "Heaps (x2):", heapSize, (heapSize/K));
+    logInfo("%18s %10d %10d", "Pointer registry:", pointerRegistrySize, pointerRegistrySize/K);
+    logInfo("%18s %10d %10d", "Raw String Map:", rawMapSize, rawMapSize/K);
+    logInfo("%18s %10d %10d", "Total:", totalSize, totalSize/K);
     logInfo("");
-    logInfo("%16s %10d", "Box:", sizeof(Box));
-    logInfo("%16s %10d", "Cons cell:", sizeof(Cons));
+    logInfo("%18s %10d", "Box:", sizeof(Box));
+    logInfo("%18s %10d", "Cons cell:", sizeof(Cons));
 }
 
 int main(int argc, char** argv) {
