@@ -26,14 +26,15 @@
 
 // Define all special forms
 #define SPECIAL_FORMS_LIST  \
-X(quote, Quote)             \
-X(if,    If)
+X(quote,    Quote)          \
+X(if,       If)             \
+X(do,       Do)
 
 // Define all primitives
-#define PRIMITIVES_LIST \
-X(car,   Car)           \
-X(cdr,   Cdr)           \
-//X(cons,  Cons)          \
+#define PRIMITIVES_LIST     \
+X(car,      Car)            \
+X(cdr,      Cdr)            \
+//X(cons,  Cons)            \
 //X(?,     Type)
 
 // Code generation macros, better not looking into this {{{
@@ -162,6 +163,49 @@ void specialFormIf(BoxRef retBoxRef, Box argsBox) {
             return evalForm(retBoxRef);
         }
     }
+}
+
+// "do" special form
+void specialFormDo(BoxRef retBoxRef, Box argsBox) {
+    // Check is cons
+    if (getTag(&argsBox) != TAG_CONS) {
+        *retBoxRef = boxSignal(SIGNAL_WRONG_ARGUMENTS);
+        return;
+    }
+
+    // set Value and remaining list
+    *retBoxRef = getCar(&argsBox);
+    argsBox = getCdr(&argsBox);
+
+    pointerRegistryPush(&argsBox);
+
+    // Evaluate until the end of the list
+    while (getTag(&argsBox) == TAG_CONS) {
+
+        // Get car of the first element in args list
+        evalForm(retBoxRef);
+
+        if (getTag(retBoxRef) == TAG_SIGNAL) {
+            // Be sure to pop the register on signal, the alternative is to do
+            // something more pleasant but less efficient like:
+            //
+            // while:
+            //    push register
+            //    eval
+            //    pop register
+            pointerRegistryPop();
+            return;
+        }
+        *retBoxRef = getCar(&argsBox);
+        argsBox = getCdr(&argsBox);
+    }
+    pointerRegistryPop();
+
+    if (getTag(&argsBox) != TAG_NIL) {
+        *retBoxRef = boxSignal(SIGNAL_WRONG_ARGUMENTS);
+    }
+
+    return evalForm(retBoxRef);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
