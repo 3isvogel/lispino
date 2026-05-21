@@ -10,26 +10,10 @@
 #include <memory/mem.h>
 #include <memory/heap.h>
 
+#include <system/lexer.h>
+
 #include <stdio.h>
 #include <string.h>
-
-// Used by the lexer to communicate types of tokens to the parser
-#define TOKEN_TYPE_LIST \
-X(LPAR)                 \
-X(RPAR)                 \
-X(STRING)               \
-X(SYMBOL)               \
-X(LABEL)                \
-X(DOT)                  \
-X(NIL)                  \
-X(QUOTE)
-
-#define X(x) TTYPE_##x,
-typedef enum {
-    TOKEN_TYPE_LIST \
-    TOKEN_TYPE_SIZE
-} TokenType;
-#undef X
 
 /**
  * @brief Maps a TokenType to the respective Tag
@@ -39,6 +23,10 @@ typedef enum {
  * @param tokenType 
  * @return 
  */
+// FIXME: This whole translation could be avoided if I enforce that
+// FIXME: 
+// FIXME: TTYPE_x = TAG_x
+// FIXME: 
 Tag ttypeToTag(TokenType tokenType) {
     // TODO: can I make translation inside TOKEN_TYPE_LIST? eg:
     //       X(STRING,TAG_STRING) X(LPAR,TAG_SIGNAL)
@@ -46,6 +34,7 @@ Tag ttypeToTag(TokenType tokenType) {
     case TTYPE_SYMBOL:  return TAG_SYMBOL;
     case TTYPE_STRING:  return TAG_STRING;
     case TTYPE_LABEL:   return TAG_LABEL;
+    case TTYPE_INT:     return TAG_INT;
 
     // This function is intended to translate similar types (string, label,
     // symbols) to corresponding tag type, but declaration implies it can work
@@ -56,153 +45,10 @@ Tag ttypeToTag(TokenType tokenType) {
     // return a TAG_SIGNAL
 
     case TTYPE_NIL:     return TAG_NIL;
-    default:            return TAG_SIGNAL;
+    default:
+        logWarning("You might have forgot to implement a type translation");
+                        return TAG_SIGNAL;
     }
-}
-
-typedef long long int TokenValue;
-
-typedef struct {
-    char*           text;
-    unsigned int    len;
-    TokenType       type;
-    TokenValue      value;
-    unsigned int    bufferSize;
-} Token;
-Token token;
-
-void destroyParser() {
-    free(token.text);
-}
-
-/**
- * @brief Allocate memory for the parser
- *
- * @param maximumTokenSize 
- * @return pointer to allocated buffer, used by memory management to free it
- * later
- */
-char* createParser(unsigned int bufferSize) {
-    if (token.text != NULL) destroyParser();
-
-    char* buffer = (char*)halloc(bufferSize + 1);
-
-    token = (Token) {
-        .text = buffer,
-        .len = 0,
-        .bufferSize = bufferSize,
-        .type = TTYPE_NIL,
-        .value = 0,
-    };
-    return buffer;
-}
-
-/**
- * @brief Append character to the token safely
- *        TODO: (needs refining)
- *
- * @param character 
- */
-void putch(char character) {
-    if (token.len == token.bufferSize) {
-        logError("; Token too long: %.*s", token.len, token.text);
-        fail(SIGNAL_TOKEN_TOO_LONG);
-    }
-    token.text[token.len ++ ] = character;
-}
-
-void clearToken() {
-    token.len = 0;
-}
-
-/**
- * @brief Consume input until a matching token is found
- *
- * @return TODO: nothing at the moment
- */
-int cc = '\0';
-void next() {
-
-    clearToken();
-
-    do {
-        
-        if (cc == EOF) {
-            // TODO: actually handle this
-            fail(SIGNAL_EOF_REACHED);
-    
-        // TODO: handle special characters, used as abbreviations for longer
-        // forms, returns
-        // just a single character
-        } else if (cc == '(') {
-            token.type = TTYPE_LPAR;
-            putch(cc);
-            goto lexerConsumeAndReturn;
-        } else if (cc == ')') {
-            token.type = TTYPE_RPAR;
-            putch(cc);
-            goto lexerConsumeAndReturn;
-        } else if (cc == '.') {
-            token.type = TTYPE_DOT;
-            putch(cc);
-            goto lexerConsumeAndReturn;
-        } else if (cc == '\'') {
-            token.type = TTYPE_QUOTE;
-            putch(cc);
-            goto lexerConsumeAndReturn;
-        } else if (cc ==  '"') {
-            cc = getchar();
-            while (cc != '"'){
-                if (cc != '\\') {
-                    putch(cc);
-                } else {
-                    cc = getchar();
-                    static const char *escapeChars = "abtnvfr";
-                    const char *escapedLetter = strchr(escapeChars, cc);
-                    putch(escapedLetter ? escapedLetter - escapeChars : cc);
-                }
-                cc = getchar();
-            }
-            token.type = TTYPE_STRING;
-            goto lexerConsumeAndReturn;
-            // Keep adding character until a non-escaped " is found
-        } else if (cc ==  ';') {
-            while((cc = getchar()) != '\n') {};
-            // Also consume '\n'
-        // TODO: recognize symbols
-        } else if (cc >= '*' && cc <= '~') {
-            do {
-                putch(cc);
-                cc = getchar();
-            } while(cc >= '*' && cc <= '~');
-            if (token.text[0] == ':')
-                token.type = TTYPE_LABEL;
-            else
-                token.type = TTYPE_SYMBOL;
-            goto lexerReturn;
-        } else if (cc >= '!' && cc <= '\'') {
-            logError("%c (%x)", cc, cc);
-            todo("Implement special characters");
-        }
-        
-        // If it doesn't match anything just consume it
-        cc = getchar();
-
-    } while(1);
-
-// Cerain token (like symbols) keep reading until an invalid character is found
-// so they will jump in lexerReturn (cc is already outside of token)
-// While other (like parenthesis and strings) are single-character or have
-// well-defined begin-end, so they don't need to consume an additional character
-// to ensure both work the same way, the latter kind will jump to
-// lexerConsumeAndReturn
-lexerConsumeAndReturn:
-    cc = getchar();
-lexerReturn:
-    putch('\0');
-    token.len --;
-    // Putch increases size (makes '\0' part of the length)
-    return;
 }
 
 // LISP simplified BNF
@@ -234,6 +80,7 @@ void specialTransform(BoxRef boxRef, char* name) {
         Box value = boxNil();
         pointerRegistryPush(&value);
         readForm(&value);
+        pointerRegistryPop();
         
         // Append it after special symbol
         cons = newCons();
@@ -241,8 +88,6 @@ void specialTransform(BoxRef boxRef, char* name) {
         // default cdr = nil
         ((Cons*)getValue(boxRef))->cdr = setBox((Value) cons, TAG_CONS);
     }
-
-    pointerRegistryPop();
 }
 
 void readForm(BoxRef boxRef) {
@@ -256,9 +101,9 @@ void readForm(BoxRef boxRef) {
         next();
         readList(boxRef);
         // Keeping signals separated to later differenciate them
-        if (token.type != TTYPE_RPAR) {
+        if (getTag(boxRef) == TAG_SIGNAL) {
             *boxRef = boxSignal(SIGNAL_SYNTAX_ERROR);
-        } else if (getTag(boxRef) == TAG_SIGNAL) {
+        } else if (token.type != TTYPE_RPAR) {
             *boxRef = boxSignal(SIGNAL_SYNTAX_ERROR);
         }
        break;
@@ -284,7 +129,6 @@ void readForm(BoxRef boxRef) {
         break;
     case TTYPE_DOT:
         // If a dot appears here then a list is malformed
-        *boxRef = boxSignal(SIGNAL_SYNTAX_ERROR);
     case TTYPE_RPAR:
         // A form is either an atomic type or the beginning of a list
         *boxRef = boxSignal(SIGNAL_SYNTAX_ERROR);
@@ -294,10 +138,12 @@ void readForm(BoxRef boxRef) {
     case TTYPE_QUOTE:
         // Single quoatation (skips eval ~) is resolved at read time: a form " ' <exp> " is constructed as "(quote <exp>)"
         // Keep separated implementation of special symbols transforms
-        if (strcmp(token.text, "'") == 0) specialTransform(boxRef, "quote");
+        specialTransform(boxRef, "quote");
         break;
+    case TTYPE_INT:
     default:
-        todo("Support all symbols");
+        setValue(boxRef, token.value);
+        setTag(boxRef, ttypeToTag(token.type));
     }
 }
 

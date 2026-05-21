@@ -1,8 +1,11 @@
+#include <stdio.h>
 #include <utility/box.h>
 #include <utility/log.h>
 #include <utility/signals.h>
 
 #include "private.h"
+#include "system/functions.h"
+#include "system/printer.h"
 #include "stack.h"
 #include <memory/mem.h>
 #include <memory/heap.h>
@@ -77,10 +80,11 @@ void framePop() {
 }
 
 Frame frameCurrent() {
-    return (Frame) {
+    Frame frame = (Frame) {
         .start = &stack.data[stack.base],
         .end = &stack.data[stack.head],
     };
+    return frame;
 }
 
 int frameOuter(Frame* frame) {
@@ -88,7 +92,8 @@ int frameOuter(Frame* frame) {
         return 0;
     // Modify frame 
     frame->end = frame->start - 1;
-    frame->start = (Cons*)getValue(&(frame->end->cdr));
+    unsigned int idxStart = getValue(&(frame->end->cdr));
+    frame->start = &stack.data[idxStart];
     return 1;
 }
 
@@ -98,19 +103,20 @@ Box defineSymbol(Box name, Box definition) {
 
     // TODO: consider removing this check
     if (getTag(&name) != TAG_SYMBOL) {
+        fprintf(stderr, "; DEFINE_SYMBOL: [%s]", strTag(getTag(&name)));
+        Print(name);
         return boxSignal(SIGNAL_WRONG_TYPE);
     }
 
     // If a string is saved as X.AAA.ssss... just move to the next Box pointer
-    char* rawName = (char*)(((BoxRef)getValue(&name)) + 1);
+    char* rawName = getRaw(name);
 
     for (unsigned int index = stack.base; index < stack.head; index ++) {
 
         // Extract raw string, no need to check the type of this as I made it
         // impossible before to add any non-string symbol, if all additions are
         // done through this function there will never be non-string symbols
-        char* currentName = ((char*)getValue(&(stack.data[index].car)))
-                            + sizeof(Box);
+        char* currentName = getRaw(stack.data[index].car);
 
         if(strcmp(rawName, currentName) == 0) {
             // Definition lives in the system memory already, simply update it,
@@ -130,6 +136,8 @@ Box getSymbol(BoxRef nameRef) {
 
     // TODO: consider removing this check
     if (getTag(nameRef) != TAG_SYMBOL) {
+        fprintf(stderr, "; GET_SYMBOL: [%s]", strTag(getTag(nameRef)));
+        Print(follow(nameRef));
         return boxSignal(SIGNAL_WRONG_TYPE);
     }
     // If a string is saved as X.AAA.ssss... just move to the next Box pointer

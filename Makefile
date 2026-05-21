@@ -18,6 +18,7 @@ LD = gcc
 
 # C flags
 CFLAGS = -O2 -Wall
+# Needs -O2 or higher as it optimizes tail recursion
 
 # # Remove all logging except for errors
 # CFLAGS += -DBUILD_RELEASE

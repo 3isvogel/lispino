@@ -40,13 +40,13 @@ void innerPrint(Box box) {
         printf("%s", getRaw(box));
         break;
     case TAG_SIGNAL:
-        fprintf(stderr, ";" " " SET2E(BOLD_CODE, FG(RED_CODE)) "SIGNAL %2d" RESET ": %s", (Signal)getValue(&box), strSignal(getValue(&box)));
+        fprintf(stderr, SET2E(BOLD_CODE, FG(RED_CODE)) "SIGNAL %2d" RESET ": %s", (Signal)getValue(&box), strSignal(getValue(&box)));
         break;
     case TAG_NIL:
         printf("nil");
         break;
     case TAG_PRIMITIVE:
-        printf("<pri@%p>", (void*)getValue(&box));
+        printf("<pri@%02x>", (unsigned int)getValue(&box));
         break;
     case TAG_CLOSURE:
         printf("[(lambda ");
@@ -73,6 +73,9 @@ void Print(Box box) {
     // This code is called after evaluation, if all references were valid they
     // still are here, memory is never allocated and gc will never perform any
     // moving here, so it's safe to work without registering any pointer
+    if(getTag(&box) == TAG_SIGNAL) {
+        fprintf(stderr, "; ");
+    }
     innerPrint(box);
     // Newline (and flush)
     printf("\n");

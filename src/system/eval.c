@@ -1,240 +1,181 @@
-#include "eval.h"
 #include <utility/box.h>
 #include <utility/signals.h>
+#include <utility/log.h>
 #include <memory/stack.h>
 #include <memory/heap.h>
-#include "functions.h"
 
+#include "functions.h"
+#include "eval.h"
+#include "printer.h"
+
+#include <stdio.h>
 #include <string.h>
 
-// Given a list of evaluated elements: apply the first argument (function) to the
-// rest of the arguments
-Box applyList(BoxRef boxRef) {
+Box evalAst(Box box);
+Box evalForm(Box box);
 
-    // Skip apply if it's a signal
-    if (getTag(boxRef) == TAG_SIGNAL)
-        return *boxRef;
+#define __printBox(file, line ,boxRef)  \
+    do {                                \
+        printf("%s:%d:", file, line);   \
+        Print(boxRef);                  \
+    } while (0)
 
-    // functionBox contains the function to apply
-    Box functionBox = ((Cons*)getValue(boxRef))->car;
-    // boxRef contains instead
-        *boxRef     = ((Cons*)getValue(boxRef))->cdr;
+#define printBox(boxRef)    __printBox(__FILE__, __LINE__, boxRef)
 
-    Tag functionTag = getTag(&functionBox);
-    if (functionTag == TAG_PRIMITIVE) {
-        // Primitives are c functions: therefore they are static, don't get
-        // moved around
-        Function primitiveFunction = (Function) getValue(&functionBox);
-        primitiveFunction(boxRef, *boxRef);
-        return *boxRef;
-    } else if (functionTag == TAG_CLOSURE) {
-    // Trying to apply something that is not a primitive or a closure
-    } else {
+// Evaluates all statements but the last one
+Box applyList(Box box) {
+
+    if (getTag(&box) == TAG_SIGNAL) return box;
+
+    // NOTE: This does a useless check (I know that box is a Cons because it was
+    //       returned from evalAst but who cares)
+    Box functionBox = getCar(&box),
+        argumentBox = getCdr(&box);
+
+    switch(getTag(&functionBox)) {
+    case TAG_CLOSURE:
+        // TODO: reuse in case of tail-call
+        // Create a new frame (env)
+        framePush();
+
+        // Create binding in the new frame (env)
+        for(Box bindingBox = getCar(&functionBox)
+                ; getTag(&bindingBox) == TAG_CONS
+                ; argumentBox = getCdr(&argumentBox), bindingBox = getCdr(&bindingBox)) {
+
+            Box bindSymbolBox = getCar(&bindingBox),
+                bindValueBox  = getCar(&argumentBox);
+
+            if (getTag(&bindValueBox) == TAG_SIGNAL) return bindValueBox;
+
+            defineSymbol(bindSymbolBox, bindValueBox);
+            Print(bindSymbolBox);
+            Print(bindValueBox);
+            printf("\n");
+        }
+        // Evaluate all statements of a closure, return the last one
+
+        Box statementBox = getCdr(&functionBox),
+            resultBox = boxNil();
+        for(pointerRegistryPush(&statementBox)
+                ; getTag(&statementBox) == TAG_CONS
+                ; statementBox = getCdr(&statementBox)) {
+
+            Box resultBox = Eval(getCar(&statementBox));
+
+            // If a signal arises, remember to pop both the env and the pointer registry
+            if (getTag(&resultBox) == TAG_SIGNAL) {
+                framePop();
+                pointerRegistryPop();
+                return resultBox;
+            }
+        }
+
+        // TODO: optimize for tail-call
+        framePop();
+        pointerRegistryPop();
+
+        return resultBox;
+
+    case TAG_PRIMITIVE:
+        // getPrimitive(functionBox) returns a Function:
+        // (function : Box -> Box), call it on argumetns
+        return getPrimitive(functionBox)(argumentBox);
+    default:
+        fprintf(stderr, "; APPLY LIST: ");
+        Print(functionBox);
         return boxSignal(SIGNAL_NOT_A_FUNCTION);
     }
-
-    return boxNil();
 }
 
-void evalForm(BoxRef boxRef);
+// Evaluate an ast
+// TODO: change name
+// This evaluates elemens of an ast independently:
+//
+// Atomics evaluate to themself
+// Symbols are resolved
+// Lists are evaluated element by element: (+ a b) -> (<prim@xx> 1 2)
+Box evalAst(Box box) {
+    
+    Box headBox = boxNil(),
+        tailBox = boxNil();
 
-void evalList(BoxRef argsBoxRef) {
-    // If argument is not a Cons (e.g (+ . 3) return signal
-    if (getTag(argsBoxRef) != TAG_CONS) {
-        *argsBoxRef = boxSignal(SIGNAL_WRONG_TYPE);
-        return;
-    }
+    switch (getTag(&box)) {
+    case TAG_CONS:
 
-    // TODO: as in parser: this may be implemented as a first part "evalArgs"
-    //       and a second "evalArgsRecursive" which exploits tail call recursion
-    //       to have a neat and efficient recursive implementattion with less
-    //       repeated code
-    Box evaluatedHead = boxNil(),
-        evaluatedTail = boxNil(),
-        valueBox = boxNil();
+        pointerRegistryPush(&headBox);
+        pointerRegistryPush(&tailBox);
+        pointerRegistryPush(&box);
 
-    // 3 Pointers to construct a list (2 + temporary value)
-    pointerRegistryPush(&evaluatedHead);
-    pointerRegistryPush(&evaluatedTail);
-    pointerRegistryPush(&valueBox);
+        headBox = setBox((Value) newCons(), TAG_CONS);
+        tailBox = headBox;
 
-    // Set new cons as head
-    Cons* consRef = newCons();
-    evaluatedHead = setBox((Value) consRef, TAG_CONS);
-    evaluatedTail = evaluatedHead;
+        Box elementBox = getCar(&box);
+        Box tempBox = Eval(elementBox);
+        // Check for signals
+        if (getTag(&tempBox) == TAG_SIGNAL) {
+            headBox = tempBox;
+            goto evalAstReturn;
+        }
+        setCar(&tailBox, tempBox);
+        box = getCdr(&box);
 
-    // Set value of first cons
-    valueBox = ((Cons*)getValue(argsBoxRef))->car;
-    evalForm(&valueBox);
-    // End on signal
-    if (getTag(&valueBox) == TAG_SIGNAL) {
-        evaluatedHead = valueBox;
-        goto evalArgsEnd;
-    }
-
-    // Add the value to result list and continue
-    ((Cons*)getValue(&evaluatedTail))->car = valueBox;
-    Tag cdrTag = getTag(&((Cons*)getValue(argsBoxRef))->cdr);
-
-    // Until list end
-    while (cdrTag == TAG_CONS) {
-        
-        // Drop reference to previous elements of the list (forward scan)
-        *argsBoxRef = ((Cons*)getValue(argsBoxRef))->cdr;
-
-        // Add cons, link it and set its car as "valueBox"
-        consRef = newCons();
-        ((Cons*)getValue(&evaluatedTail))->cdr = setBox((Value) consRef, TAG_CONS);
-        evaluatedTail = setBox((Value) consRef, TAG_CONS);
-
-        // Set value of current cons
-        valueBox = ((Cons*)getValue(argsBoxRef))->car;
-        evalForm(&valueBox);
-        // End on signal
-        if (getTag(&valueBox) == TAG_SIGNAL) {
-            evaluatedHead = valueBox;
-            goto evalArgsEnd;
+        while (getTag(&box) == TAG_CONS) {
+            setCdr(&tailBox, setBox((Value) newCons(), TAG_CONS));
+            tailBox = getCdr(&tailBox);
+            elementBox = getCar(&box);
+            tempBox = Eval(elementBox);
+            // Check for signals
+            if (getTag(&tempBox) == TAG_SIGNAL) {
+                headBox = tempBox;
+                goto evalAstReturn;
+            }
+            setCar(&tailBox, tempBox);
+            box = getCdr(&box);
         }
 
-        ((Cons*)getValue(&evaluatedTail))->car = valueBox;
-        cdrTag = getTag(&((Cons*)getValue(argsBoxRef))->cdr);
-    
-    }
-    ((Cons*)getValue(argsBoxRef))->cdr = boxNil();
+    evalAstReturn:
+        pointerRegistryPop();
+        pointerRegistryPop();
+        pointerRegistryPop();
 
-evalArgsEnd:
-    pointerRegistryPop();
-    pointerRegistryPop();
-    pointerRegistryPop();
-   
-    *argsBoxRef = evaluatedHead;
+        return headBox;
+
+    case TAG_SYMBOL: return getSymbol(&box);
+    default: return box;
+    }
 }
 
-void evalForm(BoxRef boxRef) {
-
-    // Temporary tag value
-    Tag tag = getTag(boxRef);
-
-    // Symbols are solved from env
-    if (tag == TAG_SYMBOL) {
-        *boxRef = getSymbol(boxRef);
-    // Cons are evaluated as:
-    //  If firs element is a symbol solve it and use it as a function / closure
-    //  use other elements as parameters
-    } else if (tag == TAG_CONS) {
-        Box functionBox = ((Cons*)getValue(boxRef))->car,
-            argumentBox = ((Cons*)getValue(boxRef))->cdr;
-
-        // Handle special forms
-        Function specialForm;
-        if (getTag(&functionBox) == TAG_SYMBOL && (specialForm = matchSpecialForm(getRaw(functionBox)))) {
-            // NOTE: specialForm MUST push pointer to registry if allocate memory
-            return specialForm(boxRef, argumentBox);
-        }
-        // First element is not not associated to a special form: evaluate all
-        // elements of the list and apply them as (function arg arg arg ...)
-        // This invalidates functionBox and argumentBox, but they are no longer
-        // needed: next step is to apply function to arguments
-        //
-        // boxRef is now referencing a list of evaluated values
-        evalList(boxRef);
-        if (getTag(boxRef) == TAG_SIGNAL) return;
-        *boxRef = applyList(boxRef);
-        if (getTag(boxRef) == TAG_SIGNAL) return;
-            
-    }
-    
-    // If neither a symbol nor a cons: just return the value (atomics gets
-    // evaluated to the same value)
-}
-
+// Evaluates an expression
 Box Eval(Box box) {
+    for (;;) {
 
-    // Register this box before doing additional processing
-    pointerRegistryPush(&box);
+        Tag tag = getTag(&box);
 
-    evalForm(&box);
+        if (tag == TAG_CONS) {
+            Box functionBox = getCar(&box),
+                argumentBox = getCdr(&box);
+    
+            Function specialForm;
+            FormType formType;
+            // Handle special forms
+            if (getTag(&functionBox) == TAG_SYMBOL
+                    && (specialForm = matchSpecialForm(functionBox, &formType))) {
+                // Apply special form
+                box = specialForm(argumentBox);
+                // If special form was a leaf type return
+                if (formType == FORM_LEAF) {
+                    return box;
+                }
+                continue;
+            }
 
-    pointerRegistryPop();
+            // Not a special form: evaluate all arguments of the list
+            box = evalAst(box);
 
-    return box;
+            return applyList(box);
+        }
+        // TODO: Is anything (cons or not) but surely NOT a special form
+        return evalAst(box);
+    }
 }
-
-// Box Eval(Box ast) {
-//     Box first; Cell cc;
-//     char* sym;
-//     // apply
-//     Closure f;
-//     Box defs, args, rets; Cell cast;
-// restart:
-//     logDebug("Evaling: %lx", LONG(ast));
-//     switch(get_tag(ast)) {
-//         case CON:
-//             cc = CELL(ast);
-//             if(get_tag((first = cc->car)) == SYM) {
-//                 if(!strcmp((sym = raw_adr(CELL(first))), "define")) {
-//                     return def_ops(cc->cdr);
-//                 } else if(!strcmp(sym, "lambda")) {
-//                     return lambda_ops(cc->cdr);
-//                 } else if(!strcmp(sym, "quote")) {
-//                     if(get_tag(cc->cdr) != CON)
-//                         return box(ERR, WRONG_ARGUMENTS);
-//                     return CELL(cc->cdr)->car;
-//                 } else if(!strcmp(sym, "if")) {
-//                     if(get_tag(cc->cdr) != CON || get_tag((cc = CELL(cc->cdr))->cdr) != CON)
-//                         return box(ERR, WRONG_ARGS_NUMBER);
-//                     if(get_tag(Eval(cc->car)) != NIL) {
-//                         ast = CELL(cc->cdr)->car;
-//                         goto restart;
-//                         //return Eval((cc = CELL(cc->cdr))->car);
-//                     }
-//                     if(get_tag(cc->cdr) == CON) {
-//                         cc = CELL(cc->cdr);
-//                         if(get_tag(cc->cdr) == CON) {
-//                             ast = CELL(cc->cdr)->car;
-//                             goto restart;
-//                             //return Eval(CELL(cc->cdr)->car);
-//                         }
-//                         return box(NIL, 0);
-//                     } return box(ERR, WRONG_ARGUMENTS);
-//                 } else if (!strcmp(sym, "do")) {
-//                     first = nil;
-//                     ast = cc->cdr;
-//                     while(get_tag(ast) == CON) {
-//                         cc = CELL(ast);
-//                         first = Eval(cc->car);
-//                         ast = cc->cdr;
-//                     };
-//                     return first;
-//                 }
-//             }
-//             ast = eval_ast(ast);
-//             cast = CELL(ast);
-//             switch(get_tag(cast->car)) {
-//                 case PRI:
-//                     f = (Closure)get_val(cast->car);
-//                     return f(cast->cdr);
-//                 case CLO:
-//                     if(!frame_lvl) {
-//                         frame_lvl++;
-//                         frame_new();
-//                     } else {
-//                         frame_rst();
-//                     }
-//                     defs = CELL(cast->car)->car;
-//                     args = cast->cdr;
-//                     while(get_tag(defs) == CON) {
-//                         if (get_tag(args) == CON) {
-//                             define_sym(CELL(CELL(defs)->car), CELL(args)->car);
-//                             args = CELL(args)->cdr;
-//                         } else { define_sym(CELL(CELL(defs)->car), nil); }
-//                         defs = CELL(defs)->cdr;
-//                     }
-//                     ast = CELL(CELL(cast->car)->cdr)->car;
-//                     goto restart;
-//             }
-//             return box(ERR, NOT_A_FUNCTION);
-//             // PREVIOUSLY WAS: return apply(CELL(ast));
-//     }
-//     return eval_ast(ast);
-// }

@@ -51,9 +51,9 @@ __attribute__((__packed__))
 // check to make sure that the reference lays withing machine's heap
 typedef Box *BoxRef;
 
-// Define type Function as any function pointer that accepts a BoxRef as an
-// argument and returns a box
-typedef void (*Function)(BoxRef, Box);
+// Define type Function as any function pointer that accepts a Box as argument
+// and returns a box
+typedef Box (*Function) (Box);
 
 // A cons contains two boxes: a car and a cdr
 typedef struct {

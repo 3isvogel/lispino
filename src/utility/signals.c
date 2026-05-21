@@ -11,7 +11,7 @@ SIGNAL_LIST
 
 void _lineFail(Signal signal, char* file, int line) {
     // needs explicit function to pass file and line to function
-    logPrint(LOG_LEVEL_ERROR, file, line, "Fail with signal %2d: %s", signal, printableSignals[signal]);
+    logPrint(LOG_LEVEL_ERROR, file, line, "Fail with signal %2d: %s", signal, strSignal(signal));
     // Clean all allocated memory
     destroyMemory();
     exit(signal);
@@ -22,15 +22,13 @@ Box boxSignal(Signal signal) {
 }
 
 char* strSignal(Signal signal) {
-    // TODO: check boundaries?
+    if (signal >= SIGNAL_SIZE)
+        return printableSignals[SIGNAL_UNKNOWN_FAILURE];
     return printableSignals[signal];
 }
 
 unsigned int signalPass(BoxRef dest, BoxRef src) {
-    if (getTag(src) != TAG_SIGNAL) {
-        return 0;
-    }
+    if (getTag(src) != TAG_SIGNAL) return 0;
    *dest = *src;
    return 1;
-
 }

@@ -22,7 +22,6 @@ X(UNTERMINATED_STR, "")     \
 X(SYMBOL_NOT_DEFINED, "")   \
 X(UNEXPECTED_BRANCH, "")    \
 X(NOT_A_FUNCTION, "")       \
-X(WRONG_ARGUMENTS, "")      \
 X(WRONG_ARGS_NUMBER, "")    \
 X(WRONG_TYPE, "")           \
 X(DIV_ZERO, "")             \
@@ -31,16 +30,18 @@ X(OUT_OF_STACK, "")         \
 X(LAMBDA_ARGS, "")          \
 X(PTR_MOVED, "")            \
 /* Introducing new error types, should use these instead to fail */ \
-X(TOKEN_TOO_LONG, "")       \
-X(HEAP_FULL, "")            \
-X(STACK_FULL, "")           \
-X(POINTER_REGISTRY_FULL, "")\
-X(RAW_MAP_FULL, "")         \
-X(SYNTAX_ERROR, "")         \
-X(BAD_REFERENCE, "")        \
-X(FAIL_RAWMEMORY_CHECK, "") \
-X(POINTER_REGISTRY_LEAKING, "")\
-X(POINTER_REGISTRY_EMPTY, "")\
+X(TOKEN_TOO_LONG, "")           \
+X(HEAP_FULL, "")                \
+X(STACK_FULL, "")               \
+X(POINTER_REGISTRY_FULL, "")    \
+X(RAW_MAP_FULL, "")             \
+X(SYNTAX_ERROR, "")             \
+X(BAD_REFERENCE, "")            \
+X(FAIL_RAWMEMORY_CHECK, "")     \
+X(POINTER_REGISTRY_LEAKING, "") \
+X(POINTER_REGISTRY_EMPTY, "")   \
+X(WRONG_ARGUMENTS, "")          \
+X(NOT_A_CONS, "")               \
 X(TO_DO, "")
     
 #define X(x,s) SIGNAL_##x,

@@ -7,20 +7,20 @@ TAG_LIST
 };
 #undef X
 
-void setValue(BoxRef box, Value value) {
-    box->value = value;
+void setValue(BoxRef boxRef, Value value) {
+    boxRef->value = value;
 }
 
-void setTag(BoxRef box, Tag tag) {
-    box->tag = tag;
+void setTag(BoxRef boxRef, Tag tag) {
+    boxRef->tag = tag;
 }
 
-Value getValue(BoxRef box) {
-    return box->value;
+Value getValue(BoxRef boxRef) {
+    return boxRef->value;
 }
 
-Tag getTag(BoxRef box) {
-    return box->tag;
+Tag getTag(BoxRef boxRef) {
+    return boxRef->tag;
 }
 
 Box setBox(Value value, Tag tag) {
@@ -31,27 +31,28 @@ Box setBox(Value value, Tag tag) {
 }
 
 char* strTag(Tag tag) {
-    // TODO: check boundaries?
+    if (tag >= TAG_SIZE)
+        return printableTag[TAG_SIGNAL];
     return printableTag[tag];
 }
 
 Box getCar(BoxRef boxRef) {
     Tag tag = getTag(boxRef);
     // Propagate signal
-    if (tag == TAG_SIGNAL) {
+    if (tag == TAG_SIGNAL)
         return *boxRef;
-    } else if (tag != TAG_CONS && tag != TAG_CLOSURE) {
+    if (tag != TAG_CONS && tag != TAG_CLOSURE)
         return boxSignal(SIGNAL_WRONG_ARGUMENTS);
-    } return ((Cons*)getValue(boxRef))->car;
+    return ((Cons*)getValue(boxRef))->car;
 }
 
 Box getCdr(BoxRef boxRef) {
     Tag tag = getTag(boxRef);
-    if (tag == TAG_SIGNAL) {
+    if (tag == TAG_SIGNAL)
         return *boxRef;
-    } else if (tag != TAG_CONS && tag != TAG_CLOSURE) {
+    if (tag != TAG_CONS && tag != TAG_CLOSURE)
         return boxSignal(SIGNAL_WRONG_ARGUMENTS);
-    } return ((Cons*)getValue(boxRef))->cdr;
+    return ((Cons*)getValue(boxRef))->cdr;
 }
 
 void setCar(BoxRef boxRef, Box value) {
