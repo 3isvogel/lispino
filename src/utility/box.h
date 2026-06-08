@@ -47,6 +47,8 @@ __attribute__((__packed__))
     Tag tag;
 } Box;
 
+extern const Box nil;
+
 // Abstract pointers when working outside of heap, always perform a boundary
 // check to make sure that the reference lays withing machine's heap
 typedef Box *BoxRef;

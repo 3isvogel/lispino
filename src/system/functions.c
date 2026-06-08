@@ -9,6 +9,7 @@
 #include "memory/stack.h"
 #include "system/eval.h"
 #include "utility/box.h"
+#include "utility/log.h"
 #include "utility/signals.h"
 #include <assert.h>
 #include <stdio.h>
@@ -40,26 +41,27 @@ X(quote,    Quote,  LEAF)       \
 X(if,       If,     COMPOSITE)  \
 X(do,       Do,     COMPOSITE)  \
 X(lambda,   Lambda, LEAF)       \
-X(define,   Define, LEAF)
+X(define,   Define, LEAF)       \
 
 // Define all primitives
 #define PRIMITIVES_LIST     \
 X(car,      Car)            \
 X(cdr,      Cdr)            \
 /*X(cons,  Cons)*/          \
-/*X(?,     Type)*/          \
+X(?,        Type)           \
 X(sym,      Sym)            \
-X(form,     Form)
+X(form,     Form)           \
+X(+,        IntAdd)
 
 
 // Code generation macros, better not looking into this {{{
-    
+
     // Internal: associative structure string name-procedure
     typedef struct {
         char* name;
         Function function;
     } FunctionMap;
-    
+
     // Internal: forward declaration of all supported special forms and primitives
     // NOTE: special forms and primitives have the same signature
     #define X(name, function, type)   Box specialForm##function(Box box);
@@ -68,7 +70,7 @@ X(form,     Form)
     #define X(name, function)   Box primitive##function(Box box);
     PRIMITIVES_LIST
     #undef X
-    
+
     // Internal: enumerate special forms and primitives to know the size of initial
     //           arrays
     #define X(name, function, type) SPECIAL_FORM_##function,
@@ -200,7 +202,7 @@ Box specialFormIf(Box box) {
 
     // False branch
     statementsBox = getCdr(&statementsBox);
-    if (getTag(&statementsBox) == TAG_NIL) return boxNil();
+    if (getTag(&statementsBox) == TAG_NIL) return nil;
     statementsBox = getCar(&statementsBox);
     return Eval(statementsBox);
 }
@@ -309,12 +311,17 @@ Box primitiveCdr(Box box) {
     return getCdr(&argumentBox);
 }
 
+Box primitiveType(Box box) {
+    Box argBox = getCar(&box);
+    return setBox(getTag(&argBox), TAG_INT);
+}
+
 Box primitiveSym(Box box) {
     for (int i = 0; i < stack.head; i++) {
         printf("%s ", getRaw(stack.data[i].car));
     }
     printf("\n");
-    return boxNil();
+    return nil;
 }
 
 Box primitiveForm(Box box) {
@@ -322,5 +329,23 @@ Box primitiveForm(Box box) {
         printf("%s ", specialFormsMap[i].name);
     }
     printf("\n");
-    return boxNil();
+    return nil;
+}
+
+Box primitiveIntAdd(Box box) {
+    int acc = 0;
+    Box iter = getCar(&box),
+        val = iter;
+    if (getTag(&val) == TAG_INT) {
+        acc = getValue(&val);
+
+        for (iter = getCdr(&box), val = getCar(&iter);
+                getTag(&iter) != TAG_NIL;
+                iter = getCdr(&iter), val = getCar(&iter)) {
+            if (getTag(&val) != TAG_INT)
+                return boxSignal(SIGNAL_WRONG_TYPE);
+            acc += getValue(&val);
+        }
+    }
+    return setBox(acc, TAG_INT);
 }

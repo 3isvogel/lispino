@@ -83,6 +83,7 @@ void next() {
         // End of file
         if (cc == EOF) {
             token.type = TTYPE_EOF;
+            logInfo("EOF reached");
             appendChar('\0');
             goto lexerReturn;
         // ( Left parenthesis

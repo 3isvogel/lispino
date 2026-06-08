@@ -47,6 +47,8 @@ Tag ttypeToTag(TokenType tokenType) {
     case TTYPE_NIL:     return TAG_NIL;
     default:
         logWarning("You might have forgot to implement a type translation");
+        logWarning("TokenType: 0x%0x", tokenType);
+        abort();
                         return TAG_SIGNAL;
     }
 }

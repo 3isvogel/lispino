@@ -16,7 +16,7 @@ Box evalForm(Box box);
 
 #define __printBox(file, line ,boxRef)  \
     do {                                \
-        printf("%s:%d:", file, line);   \
+        printf("      %s:%d:\n", file, line);   \
         Print(boxRef);                  \
     } while (0)
 
@@ -49,19 +49,19 @@ Box applyList(Box box) {
             if (getTag(&bindValueBox) == TAG_SIGNAL) return bindValueBox;
 
             defineSymbol(bindSymbolBox, bindValueBox);
-            Print(bindSymbolBox);
-            Print(bindValueBox);
             printf("\n");
         }
         // Evaluate all statements of a closure, return the last one
 
         Box statementBox = getCdr(&functionBox),
             resultBox = boxNil();
+
         for(pointerRegistryPush(&statementBox)
                 ; getTag(&statementBox) == TAG_CONS
                 ; statementBox = getCdr(&statementBox)) {
 
-            Box resultBox = Eval(getCar(&statementBox));
+            // TODO: check local
+            resultBox = Eval(getCar(&statementBox));
 
             // If a signal arises, remember to pop both the env and the pointer registry
             if (getTag(&resultBox) == TAG_SIGNAL) {
@@ -83,7 +83,6 @@ Box applyList(Box box) {
         return getPrimitive(functionBox)(argumentBox);
     default:
         fprintf(stderr, "; APPLY LIST: ");
-        Print(functionBox);
         return boxSignal(SIGNAL_NOT_A_FUNCTION);
     }
 }

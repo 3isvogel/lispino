@@ -7,6 +7,11 @@ TAG_LIST
 };
 #undef X
 
+const Box nil = (Box){
+    0,
+    TAG_NIL
+};
+
 void setValue(BoxRef boxRef, Value value) {
     boxRef->value = value;
 }
