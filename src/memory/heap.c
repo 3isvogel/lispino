@@ -129,14 +129,14 @@ BoxRef internalMemRequest(unsigned int size) {
     BoxRef reserved = &heap.active[heap.head];
     // Move head accordingly, aligned to Box size;
     unsigned int offset = (size-1)/sizeof(Box) + 1;
-    
+
     heap.head += offset;
     heap.requested += offset * sizeof(Box);
 
     return reserved;
 }
 
-BoxRef newMem(unsigned int size) {
+BoxRef GCnewMem(unsigned int size) {
     // TODO: GC will be called here
     if (heap.requested > HEAP_TRESHOLD_GC){
         gc();
@@ -154,17 +154,17 @@ BoxRef newMem(unsigned int size) {
     return address;
 }
 
-Cons* newCons() {
+Cons* GCnewCons() {
     // Make space for a cons
-    Cons* cons = (Cons*)newMem(sizeof(Cons));
+    Cons* cons = (Cons*)GCnewMem(sizeof(Cons));
     cons->car = boxNil();
     cons->cdr = boxNil();
     return cons;
 }
 
-BoxRef newRaw(unsigned int len) {
+BoxRef GCnewRaw(unsigned int len) {
     // Make space fora a raw string
-    BoxRef boxRef = newMem(sizeof(Box) + len + 1);
+    BoxRef boxRef = GCnewMem(sizeof(Box) + len + 1);
     setTag(boxRef, TAG_RAW);
     setValue(boxRef, len + 1);
     return boxRef;
@@ -206,10 +206,10 @@ BoxRef getRawStringMap(BoxRef rawRef);
 void insertRawStringMap(BoxRef rawRef);
 
 void gc() {
-    logDebug("Called GC: used %d", heap.requested);
+    logInfo("Before GC:        %d", heap.requested);
 
     // Sadly C won't let me do bitwise unless I am veeeeeery verbose
-    // Use swap active and inactive pointer, consider an empty heap and start
+    // Swap active and inactive pointer, consider an empty heap and start
     // filling it
     Box* t = heap.active;
     heap.active = heap.inactive;
@@ -245,7 +245,9 @@ void gc() {
 
     // After the clean reset the amount of bytes used
     heap.requested = heap.head * sizeof(Box);
-    logInfo("After GC: used %d", heap.requested);
+    logInfo("After GC: used    %d", heap.requested);
+    logInfo("Stack entries:    %d", stack.head);
+    logInfo("Pointer registry: %d", registry.head);
 
 }
 
@@ -498,8 +500,10 @@ BoxRef getRawStringMap(BoxRef rawRef) {
         // or value) returns the found
         // The idea is: lazy evaluation will skip most rawEq
         // (assuming key != (key & mask), which should be the case)
-        if (key == rawMap.keys[probe] && rawEq(rawRef, rawMap.rawRefs[probe]))
+        if (key == rawMap.keys[probe] && rawEq(rawRef, rawMap.rawRefs[probe])) {
+            logDebug("Deduplicated: %s", rawRef+1);
             return rawMap.rawRefs[probe];
+        }
     }
     return NULL;
 }

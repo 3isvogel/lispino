@@ -8,6 +8,7 @@
 #include "memory/private.h"
 #include "memory/stack.h"
 #include "system/eval.h"
+#include "system/printer.h"
 #include "utility/box.h"
 #include "utility/log.h"
 #include "utility/signals.h"
@@ -37,11 +38,11 @@
 
 // Define all special forms
 #define SPECIAL_FORMS_LIST      \
-X(quote,    Quote,  LEAF)       \
-X(if,       If,     COMPOSITE)  \
-X(do,       Do,     COMPOSITE)  \
-X(lambda,   Lambda, LEAF)       \
-X(define,   Define, LEAF)       \
+X(quote,     , Quote,  LEAF)       \
+X(if,      GC, If,     COMPOSITE)  \
+X(do,      GC, Do,     COMPOSITE)  \
+X(lambda,    , Lambda, LEAF)       \
+X(define,    , Define, LEAF)       \
 
 // Define all primitives
 #define PRIMITIVES_LIST     \
@@ -51,7 +52,9 @@ X(cdr,      Cdr)            \
 X(?,        Type)           \
 X(sym,      Sym)            \
 X(form,     Form)           \
-X(+,        IntAdd)
+X(+,        IntAdd)         \
+X(eq,       Eq)             \
+X(println,  Println)
 
 
 // Code generation macros, better not looking into this {{{
@@ -64,7 +67,7 @@ X(+,        IntAdd)
 
     // Internal: forward declaration of all supported special forms and primitives
     // NOTE: special forms and primitives have the same signature
-    #define X(name, function, type)   Box specialForm##function(Box box);
+    #define X(name, prefix, function, type)   Box prefix##specialForm##function(Box box);
     SPECIAL_FORMS_LIST
     #undef X
     #define X(name, function)   Box primitive##function(Box box);
@@ -73,7 +76,7 @@ X(+,        IntAdd)
 
     // Internal: enumerate special forms and primitives to know the size of initial
     //           arrays
-    #define X(name, function, type) SPECIAL_FORM_##function,
+    #define X(name, prefix, function, type) SPECIAL_FORM_##function,
     typedef enum {
         SPECIAL_FORMS_LIST
         SPECIAL_FORMS_SIZE
@@ -87,9 +90,9 @@ X(+,        IntAdd)
     #undef X
 
     // Internal: Arrays mapping names to special form definitions and primitives
-    // Special forms definition are searched straight from the array,
+    // Special forms definitions are searched straight from the array,
     // Primitives array is instead used to initialize the environment
-    #define X(_name, _function, type) {.name = #_name, .function = specialForm##_function},
+    #define X(_name, prefix, _function, type) {.name = #_name, .function = prefix##specialForm##_function},
     FunctionMap specialFormsMap[SPECIAL_FORMS_SIZE] = {
         SPECIAL_FORMS_LIST
     };
@@ -110,7 +113,7 @@ X(+,        IntAdd)
     // Creates a bit mask where setting bit in position i (1 << i) means the
     // i-th function is a leaf one
     // NOTE: God forbid me
-    #define X(_name, function, type) | (FORM_##type << SPECIAL_FORM_##function)
+    #define X(_name, prefix, function, type) | (FORM_##type << SPECIAL_FORM_##function)
     unsigned long long int specialFormsType = 0 SPECIAL_FORMS_LIST;
     #undef X 
 
@@ -135,18 +138,18 @@ Function matchSpecialForm(Box box, FormType* isLeafStatement) {
             // *isLeafStatement = specialFormsType & (1 << i);
             // NOTE: slower but more explicatory
             *isLeafStatement = (specialFormsType & (1 << i)) ? FORM_LEAF : FORM_COMPOSITE;
-            logInfo("Special form \"%s\" is: %s", name, isLeafStatement ? "LEAF" : "Composite");
+//            logInfo("Special form \"%s\" is: %s", name, isLeafStatement ? "LEAF" : "Composite");
             return specialFormsMap[i].function;
         }
     }
     return NULL;
 }
 
-void initializeEnv() {
+void GCinitializeEnv() {
     for (unsigned int i = 0; i < PRIMITIVES_SIZE; i++) {
         // Make symbol into raw heap memory
         unsigned int len = strlen(primitivesMap[i].name);
-        Box* rawRef = newRaw(len);
+        Box* rawRef = GCnewRaw(len);
         setRaw(rawRef, primitivesMap[i].name);
         Box name = setBox((Value) rawRef, TAG_SYMBOL);
         Box definition = setBox((Value) i, TAG_PRIMITIVE);
@@ -179,7 +182,7 @@ Box specialFormQuote(Box box) {
 }
 
 // "if" special form
-Box specialFormIf(Box box) {
+Box GCspecialFormIf(Box box) {
 
     // Condition for the if statement
     Box conditionBox = getCar(&box),
@@ -189,26 +192,28 @@ Box specialFormIf(Box box) {
     pointerRegistryPush(&statementsBox);
 
         // Evaluate condition
-        conditionBox = Eval(conditionBox);
+        conditionBox = GCEval(conditionBox);
 
     pointerRegistryPop();
     pointerRegistryPop();
-    
+
     // If signal occured in condition, return it:
-    if (getTag(&conditionBox) == TAG_SIGNAL) return conditionBox;
+    sig_check(conditionBox);
+
+    // NOTE: No need to eval, can return and eval outside
 
     // True branch
-    if (getTag(&conditionBox) != TAG_NIL) return Eval(getCar(&statementsBox));
+    if (getTag(&conditionBox) != TAG_NIL) return GCEval(getCar(&statementsBox));
 
     // False branch
     statementsBox = getCdr(&statementsBox);
     if (getTag(&statementsBox) == TAG_NIL) return nil;
     statementsBox = getCar(&statementsBox);
-    return Eval(statementsBox);
+    return GCEval(statementsBox);
 }
 
 // "do" special form
-Box specialFormDo(Box box) {
+Box GCspecialFormDo(Box box) {
 
     Box currentBox = getCar(&box),
         remainingBox = getCdr(&box);
@@ -219,14 +224,13 @@ Box specialFormDo(Box box) {
     while (getTag(&remainingBox) == TAG_CONS) {
 
         // Get car of the first element in args list
-        currentBox = Eval(currentBox);
+        currentBox = GCEval(currentBox);
 
         // If something happened: return
-        if (getTag(&currentBox) == TAG_SIGNAL) {
+        sig_check(currentBox,
             pointerRegistryPop();
             pointerRegistryPop();
-            return currentBox;
-        }
+        );
 
         currentBox = getCar(&remainingBox);
         remainingBox = getCdr(&remainingBox);
@@ -237,7 +241,9 @@ Box specialFormDo(Box box) {
     pointerRegistryPop();
     pointerRegistryPop();
 
-    return Eval(currentBox);
+    // NOTE: no need to eval, can return and eval outside
+
+    return GCEval(currentBox);
 }
 
 Box specialFormLambda(Box box) {
@@ -276,12 +282,10 @@ Box specialFormDefine(Box box) {
     box = getCdr(&box);
     box = getCar(&box);
     pointerRegistryPush(&symbolBox);
-    box = Eval(box);
+    box = GCEval(box);
     pointerRegistryPop();
-    
-    if (getTag(&box) == TAG_SIGNAL) {
-        return box;
-    }
+
+    sig_check(box);
 
     return defineSymbol(symbolBox, box);
 }
@@ -292,7 +296,9 @@ Box specialFormDefine(Box box) {
 
 Box primitiveUnknown(Box box) {
     logError("Primitive not found");
-    return boxSignal(SIGNAL_BAD_REFERENCE);
+    box = boxSignal(SIGNAL_BAD_REFERENCE);
+    trace(&box);
+    return box;
 }
 
 Box primitiveCar(Box box) {
@@ -317,6 +323,7 @@ Box primitiveType(Box box) {
 }
 
 Box primitiveSym(Box box) {
+    printf("PrimSym");
     for (int i = 0; i < stack.head; i++) {
         printf("%s ", getRaw(stack.data[i].car));
     }
@@ -325,6 +332,7 @@ Box primitiveSym(Box box) {
 }
 
 Box primitiveForm(Box box) {
+    printf("PrimForm");
     for (int i = 1; i < SPECIAL_FORMS_SIZE; i++) {
         printf("%s ", specialFormsMap[i].name);
     }
@@ -342,10 +350,60 @@ Box primitiveIntAdd(Box box) {
         for (iter = getCdr(&box), val = getCar(&iter);
                 getTag(&iter) != TAG_NIL;
                 iter = getCdr(&iter), val = getCar(&iter)) {
-            if (getTag(&val) != TAG_INT)
-                return boxSignal(SIGNAL_WRONG_TYPE);
+            if (getTag(&val) != TAG_INT) {
+                logError("Cannot add %s", strTag(getTag(&val)));
+                box = boxSignal(SIGNAL_WRONG_TYPE);
+            }
             acc += getValue(&val);
         }
     }
     return setBox(acc, TAG_INT);
+}
+
+int consEq(BoxRef a, BoxRef b) {
+    if (a == b) return 1;
+    todo("consEq not implemented");
+    return 0;
+}
+
+Box primitiveEq(Box box) {
+    Box first, iter, val;
+
+    int eq = 1;
+
+    for(first = getCar(&box), iter = getCdr(&box), val = getCar(&iter);
+            getTag(&iter) != TAG_NIL;
+            iter = getCdr(&iter), val = getCar(&iter)) {
+
+        sig_check(iter);
+        // TODO: check if it's equivalent
+        if (getTag(&iter) == TAG_SIGNAL) return boxSignal(getValue(&iter));
+
+        const Tag ta = getTag(&first), tb = getTag(&val);
+        const Value va = getValue(&first), vb = getValue(&val);
+        if (ta != tb) {
+            eq = 0;
+        } else if (ta == TAG_INT) {
+            if (va != vb) eq = 0;
+        } else if (ta == TAG_CONS) {
+            eq = consEq((BoxRef) NULL, (BoxRef) NULL);
+        // Or any other strcmp
+        } else if (ta == TAG_STRING) {
+            todo("string eq not implemented");
+        }
+        if(!eq) return nil;
+    }
+    return setBox(1, TAG_INT);
+}
+
+Box primitivePrintln(Box box) {
+    Box val, iter;
+    for(iter = box, val = getCar(&iter);
+            getTag(&iter) != TAG_NIL;
+            iter = getCdr(&iter), val = getCar(&iter)) {
+        sig_check(box);
+        innerPrint(val, 1);
+    }
+    printf("\n");
+    return nil;
 }

@@ -112,7 +112,7 @@ Box setBox(Value value, Tag tag);
  * @return 
  */
 static inline Box boxNil() {
-    return setBox(0, TAG_NIL);
+    return nil;
 }
 
 /**

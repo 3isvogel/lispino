@@ -39,14 +39,14 @@ Box* createHeap(unsigned int size);
  * @param size 
  * @return The address of the allocated memory
  */
-BoxRef newMem(unsigned int size);
+BoxRef GCnewMem(unsigned int size);
 
 /**
  * @brief Calls GC - and requests enough memory for a Cons
  *
  * @return Thea ddress of the allocated memory
  */
-Cons* newCons();
+Cons* GCnewCons();
 
 /**
  * @brief Calls GC - and requests enough memory for a raw string
@@ -56,7 +56,7 @@ Cons* newCons();
  * @param len 
  * @return 
  */
-BoxRef newRaw(unsigned int len);
+BoxRef GCnewRaw(unsigned int len);
 
 /**
  * @brief Sets the value of a raw string

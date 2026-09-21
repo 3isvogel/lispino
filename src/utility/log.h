@@ -4,90 +4,82 @@
 extern "C" {
 #endif
 
-#define LOG_LEVEL_LIST  \
-X(ALLOC)                \
-X(DEBUG)                \
-X(INFO)                 \
-X(WARNING)              \
-X(ERROR)                \
+#include <stdarg.h>
+#include "term_colors.h"
 
-#define X(x)    LOG_LEVEL_##x,
+#define LOG_LEVEL_LIST  \
+X(ALLOC,    Alloc,      TERM_CODE_SET(TERM_CODE_FG(TERM_COLOR_BLUE)))                   \
+X(DEBUG,    Debug,      TERM_CODE_SET(TERM_CODE_FG(TERM_COLOR_CYAN)))                   \
+X(INFO,     Info,       TERM_CODE_SET(TERM_CODE_FG(TERM_COLOR_GREEN)))                  \
+X(WARN,     Warn,       TERM_CODE_SET(TERM_CODE_FG(TERM_COLOR_YELLOW)))                 \
+X(ERROR,    Error,      TERM_CODE_SET2(TERM_CODE_BOLD, TERM_CODE_FG(TERM_COLOR_RED)))
+
+#define X(x,y,z)    LOG_LEVEL_##x,
 typedef enum {
     LOG_LEVEL_LIST
     LOG_LEVEL_MAX
 } LogLevel;
 #undef X
 
+/**
+ * @brief Set log level
+ *
+ * @param logLevel 
+ */
 void logSetLevel(LogLevel logLevel);
+
+/**
+ * @brief Get log level
+ *
+ * @return 
+ */
 LogLevel logGetLevel();
-void logPrint(LogLevel logLevel, const char *fileName, int lineNumber,
+
+/**
+ * @brief Conditional print, variadic
+ *
+ * @param logLevel log level
+ * @param fileName file name
+ * @param lineNumber line number
+ * @param format format string
+ */
+void logPrintF(LogLevel logLevel, const char *fileName, int lineNumber,
               const char *format, ...);
 
-// apparently doing so is necessary to correctly connect strings
-#define STR2(x) #x
-#define STR(x) STR2(x)
-#define CON2(a, b) (a##b)
-#define CON(a, b) CON(a, b)
+/**
+ * @brief Conditional print, va_list
+ *
+ * @param logLevel log level
+ * @param fileName file name
+ * @param lineNumber line number
+ * @param format format string
+ * @param args va_list of arguments
+ */
+void logPrintVa(LogLevel logLevel, const char *fileName, int lineNumber,
+              const char *format, va_list args);
 
-// modifier codes
-#define DEFAULT_CODE STR(0)
-#define BOLD_CODE STR(1)
-#define LIGHT_CODE STR(2)
-#define ITALIC_CODE STR(3)
-#define UNDERLINED_CODE STR(4)
-#define BLINKING_CODE STR(5)
-#define REVERSE_CODE STR(7)
-#define HIDDEN_CODE STR(8)
-#define STRIKED_CODE STR(9)
-
-// color codes
-#define BLACK_CODE 0
-#define RED_CODE 1
-#define GREEN_CODE 2
-#define YELLOW_CODE 3
-#define BLUE_CODE 4
-#define PURPLE_CODE 5
-#define CYAN_CODE 6
-#define GRAY_CODE 7
-
-#define FG(code) STR(3) STR(code)
-#define BG(code) STR(4) STR(code)
-
-#ifndef LOG_DISABLE_COLOR
-
-#define SET_E(color) "\x1b[" color "m"
-#define SET2E(color1, color2) "\x1b[" color1 ";" color2 "m"
-#define SET3E(color1, color2, color3) "\x1b[" color1 ";" color2 ";" color3 "m"
-#define RESET SET_E(DEFAULT_CODE)
-
-#else
-
-#define SET_E(c) ""
-#define SET2E(c1, c2) ""
-#define SET3E(c1, c2, c3) ""
-#define RESET ""
-
-#endif // LOG_DISABLE_COLOR
-
-#define logError(...) logPrint(LOG_LEVEL_ERROR, __FILE__, __LINE__, __VA_ARGS__)
+// #define logPrint(logLevel, format, ...) logPrintF(logLevel, __FILE__, __LINE__, format, __VA_ARGS__)
 
 #ifndef BUILD_RELEASE
 
-#define logAlloc(...) logPrint(LOG_LEVEL_ALLOC, __FILE__, __LINE__, __VA_ARGS__)
-#define logDebug(...) logPrint(LOG_LEVEL_DEBUG, __FILE__, __LINE__, __VA_ARGS__)
-#define logInfo(...) logPrint(LOG_LEVEL_INFO, __FILE__, __LINE__, __VA_ARGS__)
-#define logWarning(...)                                                        \
-  logPrint(LOG_LEVEL_WARNING, __FILE__, __LINE__, __VA_ARGS__)
+#define logAlloc( ...) logPrintF(LOG_LEVEL_ALLOC, __FILE__, __LINE__,  __VA_ARGS__)
+#define logDebug( ...) logPrintF(LOG_LEVEL_DEBUG, __FILE__, __LINE__,  __VA_ARGS__)
+#define logInfo( ...) logPrintF(LOG_LEVEL_INFO, __FILE__, __LINE__,  __VA_ARGS__)
+#define logWarning( ...) logPrintF(LOG_LEVEL_WARN, __FILE__, __LINE__,  __VA_ARGS__)
+#define logError( ...) logPrintF(LOG_LEVEL_ERROR, __FILE__, __LINE__,  __VA_ARGS__)
 
-#else
+#else//BUILD_RELEASE
 
-#define NOTHING                                                                \
-  do {                                                                         \
-  } while (0)
-#define logAlloc(...) NOTHING
-#define logDebug(...) NOTHING
-#define logInfo(...) NOTHING
-#define logWarning(...) NOTHING
+#define logAlloc( ...)
+#define logDebug( ...)
+#define logInfo( ...)
+#define logWarning( ...)
+#define logError( ...)
+
+#ifdef  logError
+#undef  logError
+#endif
+#define logError( ...) logPrint(LOG_LEVEL_ERROR, __FILE__, __LINE__,  __VA_ARGS__);
 
 #endif // BUILD_RELEASE
 

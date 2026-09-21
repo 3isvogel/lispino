@@ -58,41 +58,41 @@ Tag ttypeToTag(TokenType tokenType) {
 // S -> A | (L)                 <-- readForm
 // L -> \epsilon | SL           <-- readList
 
-void readForm(BoxRef boxRef);
-void readList(BoxRef boxRef);
+void GCreadForm(BoxRef boxRef);
+void GCreadList(BoxRef boxRef);
 
-void specialTransform(BoxRef boxRef, char* name) {
-    
+void GCspecialTransform(BoxRef boxRef, char* name) {
+
     // Copy string inside heap
     // TODO: could skip the copy if string already inside the heap boundaries
     unsigned int len = strlen(name);
-    BoxRef rawRef = newRaw(len);
+    BoxRef rawRef = GCnewRaw(len);
     *boxRef = setRaw(rawRef, name);
     if (getTag(boxRef) != TAG_SIGNAL) {
         setTag(boxRef, TAG_SYMBOL);
 
         // Make a new cons, assign its car to the special symbol and save cons in
         // boxRef
-        Cons *cons = newCons();
+        Cons *cons = GCnewCons();
         cons->car = *boxRef;
         *boxRef = setBox((Value)cons, TAG_CONS);
-    
+
         // Read value of next form
         next();
         Box value = boxNil();
         pointerRegistryPush(&value);
-        readForm(&value);
+        GCreadForm(&value);
         pointerRegistryPop();
-        
+
         // Append it after special symbol
-        cons = newCons();
+        cons = GCnewCons();
         cons->car = value;
         // default cdr = nil
         ((Cons*)getValue(boxRef))->cdr = setBox((Value) cons, TAG_CONS);
     }
 }
 
-void readForm(BoxRef boxRef) {
+void GCreadForm(BoxRef boxRef) {
     // Save in pointer registry for automatic update on GC
     // Every registered Box MUST be initialized to prevent unwanted behavior
     BoxRef rawRef;
@@ -101,7 +101,7 @@ void readForm(BoxRef boxRef) {
     case TTYPE_LPAR:
         // call readList
         next();
-        readList(boxRef);
+        GCreadList(boxRef);
         // Keeping signals separated to later differenciate them
         if (getTag(boxRef) == TAG_SIGNAL) {
             *boxRef = boxSignal(SIGNAL_SYNTAX_ERROR);
@@ -118,9 +118,10 @@ void readForm(BoxRef boxRef) {
         // Request new memory and fill with value
 
         // Might call GC
-        rawRef = newRaw(token.len);
+        rawRef = GCnewRaw(token.len);
 
-        *boxRef = setRaw(rawRef, token.text);
+        // If it's a label, omit ':' for string dedup
+        *boxRef = setRaw(rawRef, token.text + (token.type == TTYPE_LABEL));
         // If assignment didn't fail populate box with value and tag
         if (getTag(boxRef) != TAG_SIGNAL) {
             // Should check that the returned tag is not a signal, but since this
@@ -140,7 +141,7 @@ void readForm(BoxRef boxRef) {
     case TTYPE_QUOTE:
         // Single quoatation (skips eval ~) is resolved at read time: a form " ' <exp> " is constructed as "(quote <exp>)"
         // Keep separated implementation of special symbols transforms
-        specialTransform(boxRef, "quote");
+        GCspecialTransform(boxRef, "quote");
         break;
     case TTYPE_INT:
     default:
@@ -149,7 +150,7 @@ void readForm(BoxRef boxRef) {
     }
 }
 
-void readList(BoxRef boxRef) {
+void GCreadList(BoxRef boxRef) {
 
     // This function could be implemented simply as a 
     // car = readForm();
@@ -182,11 +183,11 @@ void readList(BoxRef boxRef) {
     pointerRegistryPush(&prev);
 
     // Read next form and assign it as car of a new cons
-    readForm(&value);
+    GCreadForm(&value);
     next();
     // If value obtained is a signal discard list and bubble up the value
     signalPass(boxRef, &value);
-    Cons* consRef = newCons();
+    Cons* consRef = GCnewCons();
     consRef->car = value;
 
     // Reference it from a registered box so it will survive GC, this will
@@ -199,13 +200,13 @@ void readList(BoxRef boxRef) {
     // signaled by the "."
     while(token.type != TTYPE_RPAR && token.type != TTYPE_DOT) {
 
-        readForm(&value);
+        GCreadForm(&value);
         next();
         // If value is a signal assign it to boxRef
         signalPass(boxRef, &value);
 
         // reserve a new cons (will continue the list
-        consRef = newCons();
+        consRef = GCnewCons();
         // Set car value of the folowing Cons
         consRef->car = value;
 
@@ -227,7 +228,7 @@ void readList(BoxRef boxRef) {
         // If the next token is a dot consume it, append the value to
         // cdr instead of car and do not allocate new Cons
         next();
-        readForm(&value);
+        GCreadForm(&value);
         // If value is a signal assign it to boxRef
         signalPass(boxRef, &value);
         // Need to extract value from "iterative" as consRef might be
@@ -251,7 +252,7 @@ Box Read() {
 
     pointerRegistryPush(&box);
 
-    readForm(&box);
+    GCreadForm(&box);
 
     pointerRegistryPop();
 

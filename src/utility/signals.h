@@ -11,6 +11,29 @@
 #include <memory/mem.h>
 #include <stdlib.h>
 
+#define likely(x)       __builtin_expect(!!(x), 1)
+#define unlikely(x)     __builtin_expect(!!(x), 0)
+
+#define sig_check(box, ...)\
+/* Test for signal, execute body and return */\
+\
+do {\
+    if(unlikely(getTag(&box) == TAG_SIGNAL)) {\
+        __VA_ARGS__\
+        return box;\
+    }\
+} while (0)
+
+#define _traceBox(func, file, line ,boxRef)\
+    do {\
+        if(getTag(boxRef) == TAG_SIGNAL) {\
+            printf(";   at %s ("file":" STR(line) "):\n", func);\
+            /* Print(boxRef);*/\
+        }\
+    } while (0)
+
+#define trace(boxRef)    _traceBox(__func__, __FILE__, __LINE__, boxRef)
+
 // All signals hava a name and a description, which is printed on fail
 
 #define SIGNAL_LIST         \
@@ -41,9 +64,8 @@ X(FAIL_RAWMEMORY_CHECK, "")     \
 X(POINTER_REGISTRY_LEAKING, "") \
 X(POINTER_REGISTRY_EMPTY, "")   \
 X(WRONG_ARGUMENTS, "")          \
-X(NOT_A_CONS, "")               \
 X(TO_DO, "")
-    
+
 #define X(x,s) SIGNAL_##x,
 typedef enum {
 SIGNAL_LIST

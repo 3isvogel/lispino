@@ -61,4 +61,4 @@ Box getSymbol(BoxRef nameRef);
 /**
  * @brief Initialize the environment with the primitives
  */
-void initializeEnv();
+void GCinitializeEnv();

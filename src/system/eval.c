@@ -6,26 +6,18 @@
 
 #include "functions.h"
 #include "eval.h"
-#include "printer.h"
 
 #include <stdio.h>
 #include <string.h>
 
-Box evalAst(Box box);
+Box GCevalAst(Box box);
 Box evalForm(Box box);
-
-#define __printBox(file, line ,boxRef)  \
-    do {                                \
-        printf("      %s:%d:\n", file, line);   \
-        Print(boxRef);                  \
-    } while (0)
-
-#define printBox(boxRef)    __printBox(__FILE__, __LINE__, boxRef)
 
 // Evaluates all statements but the last one
 Box applyList(Box box) {
 
-    if (getTag(&box) == TAG_SIGNAL) return box;
+    trace(&box);
+    sig_check(box);
 
     // NOTE: This does a useless check (I know that box is a Cons because it was
     //       returned from evalAst but who cares)
@@ -46,10 +38,10 @@ Box applyList(Box box) {
             Box bindSymbolBox = getCar(&bindingBox),
                 bindValueBox  = getCar(&argumentBox);
 
-            if (getTag(&bindValueBox) == TAG_SIGNAL) return bindValueBox;
+            trace(&bindValueBox);
+            sig_check(bindValueBox);
 
             defineSymbol(bindSymbolBox, bindValueBox);
-            printf("\n");
         }
         // Evaluate all statements of a closure, return the last one
 
@@ -61,29 +53,33 @@ Box applyList(Box box) {
                 ; statementBox = getCdr(&statementBox)) {
 
             // TODO: check local
-            resultBox = Eval(getCar(&statementBox));
+            resultBox = GCEval(getCar(&statementBox));
 
             // If a signal arises, remember to pop both the env and the pointer registry
-            if (getTag(&resultBox) == TAG_SIGNAL) {
+            trace(&resultBox);
+            sig_check(resultBox,
                 framePop();
                 pointerRegistryPop();
-                return resultBox;
-            }
+            );
         }
 
         // TODO: optimize for tail-call
         framePop();
         pointerRegistryPop();
 
+        trace(&resultBox);
         return resultBox;
 
     case TAG_PRIMITIVE:
         // getPrimitive(functionBox) returns a Function:
         // (function : Box -> Box), call it on argumetns
+        // Cannot trace without breaking TCO
         return getPrimitive(functionBox)(argumentBox);
     default:
-        fprintf(stderr, "; APPLY LIST: ");
-        return boxSignal(SIGNAL_NOT_A_FUNCTION);
+        logError("Cannot apply %s", strTag(getTag(&functionBox)));
+        functionBox = boxSignal(SIGNAL_NOT_A_FUNCTION);
+        trace(&functionBox);
+        return functionBox;
     }
 }
 
@@ -94,8 +90,8 @@ Box applyList(Box box) {
 // Atomics evaluate to themself
 // Symbols are resolved
 // Lists are evaluated element by element: (+ a b) -> (<prim@xx> 1 2)
-Box evalAst(Box box) {
-    
+Box GCevalAst(Box box) {
+
     Box headBox = boxNil(),
         tailBox = boxNil();
 
@@ -106,29 +102,31 @@ Box evalAst(Box box) {
         pointerRegistryPush(&tailBox);
         pointerRegistryPush(&box);
 
-        headBox = setBox((Value) newCons(), TAG_CONS);
+        headBox = setBox((Value) GCnewCons(), TAG_CONS);
         tailBox = headBox;
 
         Box elementBox = getCar(&box);
-        Box tempBox = Eval(elementBox);
+        Box tempBox = GCEval(elementBox);
         // Check for signals
-        if (getTag(&tempBox) == TAG_SIGNAL) {
+        trace(&tempBox);
+        sig_check(tempBox,
             headBox = tempBox;
             goto evalAstReturn;
-        }
+        );
         setCar(&tailBox, tempBox);
         box = getCdr(&box);
 
         while (getTag(&box) == TAG_CONS) {
-            setCdr(&tailBox, setBox((Value) newCons(), TAG_CONS));
+            setCdr(&tailBox, setBox((Value) GCnewCons(), TAG_CONS));
             tailBox = getCdr(&tailBox);
             elementBox = getCar(&box);
-            tempBox = Eval(elementBox);
+            tempBox = GCEval(elementBox);
             // Check for signals
-            if (getTag(&tempBox) == TAG_SIGNAL) {
+            trace(&tempBox);
+            sig_check(tempBox,
                 headBox = tempBox;
                 goto evalAstReturn;
-            }
+            );
             setCar(&tailBox, tempBox);
             box = getCdr(&box);
         }
@@ -140,13 +138,17 @@ Box evalAst(Box box) {
 
         return headBox;
 
-    case TAG_SYMBOL: return getSymbol(&box);
-    default: return box;
+    case TAG_SYMBOL:
+        box = getSymbol(&box);
+        trace(&box);
+        return box;
+    default:
+        return box;
     }
 }
 
 // Evaluates an expression
-Box Eval(Box box) {
+Box GCEval(Box box) {
     for (;;) {
 
         Tag tag = getTag(&box);
@@ -154,13 +156,14 @@ Box Eval(Box box) {
         if (tag == TAG_CONS) {
             Box functionBox = getCar(&box),
                 argumentBox = getCdr(&box);
-    
+
             Function specialForm;
             FormType formType;
             // Handle special forms
             if (getTag(&functionBox) == TAG_SYMBOL
                     && (specialForm = matchSpecialForm(functionBox, &formType))) {
                 // Apply special form
+                // May call GC
                 box = specialForm(argumentBox);
                 // If special form was a leaf type return
                 if (formType == FORM_LEAF) {
@@ -170,11 +173,16 @@ Box Eval(Box box) {
             }
 
             // Not a special form: evaluate all arguments of the list
-            box = evalAst(box);
+            box = GCevalAst(box);
 
-            return applyList(box);
+            // applyList needs to be embedded here and cannot be made into a function call
+            // as the recursion Eval -> applyList -> Eval -> applyList cannot be optimized
+            box = applyList(box);
+
+            return box;
         }
         // TODO: Is anything (cons or not) but surely NOT a special form
-        return evalAst(box);
+        box = GCevalAst(box);
+        return box;
     }
 }

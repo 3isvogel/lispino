@@ -26,10 +26,10 @@
 // - Register pointers before any GC can happen and pop it (needs another stack)
 //   keep the rest of the code the same
 
-#define K 1024
+#define K (1024 * 1024)
 
 void printsize() {
-    int tokenBufferSize,
+    unsigned int tokenBufferSize,
         stackSize,
         heapSize,
         pointerRegistrySize,
@@ -44,16 +44,16 @@ void printsize() {
     // Using two heaps: copy GC
     totalSize = tokenBufferSize + stackSize + heapSize + pointerRegistrySize + rawMapSize;
 
-    logInfo("%18s %10s %10s", "Memory", "size (B)", "size (kB)");
-    logInfo("%18s %10d %10d", "Token buffer:", tokenBufferSize, tokenBufferSize/K);
-    logInfo("%18s %10d %10d", "Symbols stack:", stackSize, stackSize/K);
-    logInfo("%18s %10d %10d", "Heaps (x2):", heapSize, (heapSize/K));
-    logInfo("%18s %10d %10d", "Pointer registry:", pointerRegistrySize, pointerRegistrySize/K);
-    logInfo("%18s %10d %10d", "Raw String Map:", rawMapSize, rawMapSize/K);
-    logInfo("%18s %10d %10d", "Total:", totalSize, totalSize/K);
+    logInfo("%18s %10s %10s", "Memory", "size (B)", "size (MB)");
+    logInfo("%18s %10u %10u", "Token buffer:",      tokenBufferSize, tokenBufferSize/K);
+    logInfo("%18s %10u %10u", "Symbols stack:",     stackSize, stackSize/K);
+    logInfo("%18s %10u %10u", "Heaps (x2):",        heapSize, (heapSize/K));
+    logInfo("%18s %10u %10u", "Pointer registry:",  pointerRegistrySize, pointerRegistrySize/K);
+    logInfo("%18s %10u %10u", "Raw String Map:",    rawMapSize, rawMapSize/K);
+    logInfo("%18s %10u %10u", "Total:",             totalSize, totalSize/K);
     logInfo("");
-    logInfo("%18s %10d", "Box:", sizeof(Box));
-    logInfo("%18s %10d", "Cons cell:", sizeof(Cons));
+    logInfo("%18s %10u", "Box:", sizeof(Box));
+    logInfo("%18s %10u", "Cons cell:", sizeof(Cons));
 }
 
 int main(int argc, char** argv) {
@@ -66,7 +66,7 @@ int main(int argc, char** argv) {
 
     printsize();
     // if(!env_init()) fail(ENV_INIT_FAIL);
-    initializeEnv();
+    GCinitializeEnv();
 
     while(1) {
         printf("%d > ", heapAvailableSize());
@@ -74,10 +74,11 @@ int main(int argc, char** argv) {
         fflush(stdout);
         // Read 1 vaild s-expr
         Box ret = Read();
-        // TODO: remove temporary leaky check
+        // TODO: remove temporary leaky check: at top level, pointer registry should be empty
         if (pointerRegistryLeaking()) fail(SIGNAL_POINTER_REGISTRY_LEAKING);
-        ret = Eval(ret);
+        ret = GCEval(ret);
         // TODO: remove temporary leaky check
+        // TODO: remove temporary leaky check: at top level, pointer registry should be empty
         if (pointerRegistryLeaking()) fail(SIGNAL_POINTER_REGISTRY_LEAKING);
         Print(ret);
     }
