@@ -85,6 +85,11 @@ void framePush() {
     stack.base = stack.head;
 }
 
+// Need it here
+void frameRst() {
+    stack.head = stack.base;
+}
+
 void framePop() {
     frameRst();
     // Prevents going backward in the stack

@@ -255,6 +255,8 @@ Box specialFormLambda(Box box) {
 Box specialFormDefine(Box box) {
     Box symbolBox = getCar(&box);
 
+    // TODO: support syntax
+    // (define (add a b) (+ a b)) -> (define add (lambda (a b) (+ a b)))
     if (getTag(&symbolBox) != TAG_SYMBOL) {
         return boxSignal(SIGNAL_WRONG_ARGUMENTS);
     }
