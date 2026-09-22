@@ -59,15 +59,30 @@ void symbolPush(Box name, Box definition) {
 // This is necessary when implementing functions, so I don't have to retain the
 // number of pushed symbols somewhere
 
+// TODO: ok, linear search is slow, consider using hashmap:
+// +-------+
+// |       |    +--+    +--+    +--+
+// | "car" | -> |  | -> |  | -> |  | -> ;
+// |       |    +- +    +--+    +--+
+// +-------+
+// |       | ; List of all occurrencies of "car" symbol, every new definition
+// |       | ; pushes on head, when frame is deleted, pop from head (new def)
+// |       | ; Hopefully this would reflect the state of the stack inside an
+// +-------+ ; hashmap
+// |       |
+// |       |
+// |       |
+// +-------+
+// |       |
+// |       |
+// |       |
+// +-------+
+
 void framePush() {
     Box name = boxNil(),
         definition = setBox(stack.base, TAG_INT);
     symbolPush(name, definition);
     stack.base = stack.head;
-}
-
-void frameRst() {
-    stack.head = stack.base;
 }
 
 void framePop() {

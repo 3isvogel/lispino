@@ -10,11 +10,11 @@
 EXE = app
 
 # C compiler
-CC = gcc
+CC = clang
 # C++ compiler
-CXX = g++
+CXX = clang
 # linker
-LD = gcc
+LD = clang
 
 # C flags
 CFLAGS = -O2 -Wall

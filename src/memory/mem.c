@@ -12,10 +12,10 @@
 
 #include <system/parser.h>
 
-#define DEFAULT_HEAP_MAX_LEN                1000
+#define DEFAULT_HEAP_MAX_LEN                1024
 #define DEFAULT_TOKEN_BUFFER_MAX_LEN        128
-#define DEFAULT_STACK_MAX_LEN               (1 << 16)
-#define DEFAULT_POINTER_REGISTRY_MAX_LEN    (1 << 16)
+#define DEFAULT_STACK_MAX_LEN               128
+#define DEFAULT_POINTER_REGISTRY_MAX_LEN    128
 #define DEFAULT_MIN_RAW_MAP_LEN             DEFAULT_STACK_MAX_LEN
 
 const unsigned int HEAP_MAX_LEN = DEFAULT_HEAP_MAX_LEN;

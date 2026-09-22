@@ -16,14 +16,6 @@
 #include <stdio.h>
 #include <string.h>
 
-#define __printBox(file, line ,box)  \
-    do {                                \
-        printf("%s:%d:", file, line);   \
-        Print(box);                  \
-    } while (0)
-
-#define printBox(box)    __printBox(__FILE__, __LINE__, box)
-
 /*
  * Each special form must be registered in the SPECIAL_FORMS_LIST as
  * X(<unique special form name>, <unique identifier>), the procedure must be
@@ -38,11 +30,11 @@
 
 // Define all special forms
 #define SPECIAL_FORMS_LIST      \
-X(quote,     , Quote,  LEAF)       \
-X(if,      GC, If,     COMPOSITE)  \
-X(do,      GC, Do,     COMPOSITE)  \
-X(lambda,    , Lambda, LEAF)       \
-X(define,    , Define, LEAF)       \
+X(quote,     , Quote, LEAF)     \
+X(if,      GC, If, COMPOSITE)   \
+X(do,      GC, Do, COMPOSITE)   \
+X(lambda,    , Lambda, LEAF)    \
+X(define,    , Define, LEAF)
 
 // Define all primitives
 #define PRIMITIVES_LIST     \
@@ -67,7 +59,7 @@ X(println,  Println)
 
     // Internal: forward declaration of all supported special forms and primitives
     // NOTE: special forms and primitives have the same signature
-    #define X(name, prefix, function, type)   Box prefix##specialForm##function(Box box);
+    #define X(name, prefix, function, leaf)   Box prefix##specialForm##function(Box box);
     SPECIAL_FORMS_LIST
     #undef X
     #define X(name, function)   Box primitive##function(Box box);
@@ -76,7 +68,7 @@ X(println,  Println)
 
     // Internal: enumerate special forms and primitives to know the size of initial
     //           arrays
-    #define X(name, prefix, function, type) SPECIAL_FORM_##function,
+    #define X(name, prefix, function, leaf) SPECIAL_FORM_##function,
     typedef enum {
         SPECIAL_FORMS_LIST
         SPECIAL_FORMS_SIZE
@@ -92,7 +84,7 @@ X(println,  Println)
     // Internal: Arrays mapping names to special form definitions and primitives
     // Special forms definitions are searched straight from the array,
     // Primitives array is instead used to initialize the environment
-    #define X(_name, prefix, _function, type) {.name = #_name, .function = prefix##specialForm##_function},
+    #define X(_name, prefix, _function, leaf) {.name = #_name, .function = prefix##specialForm##_function},
     FunctionMap specialFormsMap[SPECIAL_FORMS_SIZE] = {
         SPECIAL_FORMS_LIST
     };
@@ -103,22 +95,22 @@ X(println,  Println)
     };
     #undef X
 
-    // Internal: For special forms only: Array mapping function to one of the
-    // two values FORM_LEAF (1) & FORM_COMPOSITE (0), indicating if the function
-    // returns an evaluated expression (quote, lambda, define, etc) or an
+    // Internal: For special forms only: Bitmask mapping function to one of the
+    // two values FORM_LEAF & FORM_COMPOSITE, indicating if the function
+    // returns an evaluated expression (quote, lambda, define, etc.) or an
     // expression yet to be evaluated (if, do, etc.) this is used to instruct
     // Eval function on how to treat the returned value, returning it or
     // evaluating it further
 
     // Creates a bit mask where setting bit in position i (1 << i) means the
     // i-th function is a leaf one
-    // NOTE: God forbid me
     #define X(_name, prefix, function, type) | (FORM_##type << SPECIAL_FORM_##function)
     unsigned long long int specialFormsType = 0 SPECIAL_FORMS_LIST;
-    #undef X 
-
+    #undef X
+    // If the assertion fails: long long int is not big enough to fit all special forms
     static_assert(SPECIAL_FORMS_SIZE <= (sizeof(specialFormsType)*8),
-            "Too many special forms, the special form types map is overflowing, you must change implementation");
+    "Too many special forms, the special form types map is overflowing, you must change implementation");
+
 // }}}
 
 Box primitiveUnknown(Box box);
@@ -126,7 +118,7 @@ Box primitiveUnknown(Box box);
 Function getPrimitive(Box box) {
     if (getTag(&box) != TAG_PRIMITIVE) return primitiveUnknown;
     Value functionId = getValue(&box);
-    if (functionId >= PRIMITIVES_SIZE) return primitiveUnknown;
+    if (functionId < 0 || functionId >= PRIMITIVES_SIZE) return primitiveUnknown;
     return primitivesMap[functionId].function;
 }
 
@@ -135,10 +127,9 @@ Function matchSpecialForm(Box box, FormType* isLeafStatement) {
     for (unsigned int i = 0; i < SPECIAL_FORMS_SIZE; i++) {
         if (strcmp(name, specialFormsMap[i].name) == 0) {
             // NOTE: faster but not explicatory
-            // *isLeafStatement = specialFormsType & (1 << i);
+            *isLeafStatement = specialFormsType & (1 << i);
             // NOTE: slower but more explicatory
-            *isLeafStatement = (specialFormsType & (1 << i)) ? FORM_LEAF : FORM_COMPOSITE;
-//            logInfo("Special form \"%s\" is: %s", name, isLeafStatement ? "LEAF" : "Composite");
+            // *isLeafStatement = (specialFormsType & (1 << i)) ? FORM_LEAF : FORM_COMPOSITE;
             return specialFormsMap[i].function;
         }
     }
@@ -188,28 +179,22 @@ Box GCspecialFormIf(Box box) {
     Box conditionBox = getCar(&box),
         statementsBox = getCdr(&box);
 
-    pointerRegistryPush(&conditionBox);
     pointerRegistryPush(&statementsBox);
-
         // Evaluate condition
         conditionBox = GCEval(conditionBox);
-
-    pointerRegistryPop();
     pointerRegistryPop();
 
     // If signal occured in condition, return it:
     sig_check(conditionBox);
 
-    // NOTE: No need to eval, can return and eval outside
-
     // True branch
-    if (getTag(&conditionBox) != TAG_NIL) return GCEval(getCar(&statementsBox));
+    if (getTag(&conditionBox) != TAG_NIL)
+        return getCar(&statementsBox);
 
     // False branch
     statementsBox = getCdr(&statementsBox);
     if (getTag(&statementsBox) == TAG_NIL) return nil;
-    statementsBox = getCar(&statementsBox);
-    return GCEval(statementsBox);
+    return getCar(&statementsBox);
 }
 
 // "do" special form
@@ -217,7 +202,7 @@ Box GCspecialFormDo(Box box) {
 
     Box currentBox = getCar(&box),
         remainingBox = getCdr(&box);
-    pointerRegistryPush(&currentBox);
+
     pointerRegistryPush(&remainingBox);
 
     // Evaluate until a box is remaining
@@ -235,15 +220,10 @@ Box GCspecialFormDo(Box box) {
         currentBox = getCar(&remainingBox);
         remainingBox = getCdr(&remainingBox);
     }
-
     // Ok, you can terminate a do with anything, not just a nil (just not a cons)
-
-    pointerRegistryPop();
     pointerRegistryPop();
 
-    // NOTE: no need to eval, can return and eval outside
-
-    return GCEval(currentBox);
+    return currentBox;
 }
 
 Box specialFormLambda(Box box) {
@@ -323,11 +303,11 @@ Box primitiveType(Box box) {
 }
 
 Box primitiveSym(Box box) {
-    printf("PrimSym");
+    fprintf(stderr, "; Symbols: ");
     for (int i = 0; i < stack.head; i++) {
-        printf("%s ", getRaw(stack.data[i].car));
+        fprintf(stderr, "%s ", getRaw(stack.data[i].car));
     }
-    printf("\n");
+    fprintf(stderr, "\n");
     return nil;
 }
 

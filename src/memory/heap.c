@@ -10,7 +10,7 @@
 #include "utility/box.h"
 
 // TODO: decide a good treshold
-#define HEAP_TRESHOLD_GC ((unsigned int)((HEAP_MAX_LEN * sizeof(Box))*3/4))
+#define HEAP_TRESHOLD_GC ((unsigned int)((HEAP_MAX_LEN * sizeof(Box))*9/10))
 
 typedef struct {
     Box* active;

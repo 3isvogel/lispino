@@ -13,71 +13,103 @@
 Box GCevalAst(Box box);
 Box evalForm(Box box);
 
-// Evaluates all statements but the last one
-Box applyList(Box box) {
+// FIXME: highly dependent on Eval, should embed it
+/**
+ * @brief Apply the evaluated list
+ *
+ * @param box ast to evaluate
+ * @param formType true if form is leaf, false otherwise
+ * @param hasFrame read/write, set when frame is created, if set do not create
+ * @return result of applying value
+ */
+static inline Box GCapplyList(Box box, FormType *formType, int *hasFrame) {
 
+    // Default is leaf (most comon)
+    *formType = FORM_LEAF;
+
+    // TODO: maybe duplicate
+    // Early exit
     trace(&box);
     sig_check(box);
 
-    // NOTE: This does a useless check (I know that box is a Cons because it was
-    //       returned from evalAst but who cares)
+    // For convenience, keep function and argument box separated
     Box functionBox = getCar(&box),
         argumentBox = getCdr(&box);
 
     switch(getTag(&functionBox)) {
     case TAG_CLOSURE:
-        // TODO: reuse in case of tail-call
-        // Create a new frame (env)
-        framePush();
+        // Make a new frame
+        if(*hasFrame == 0) {
+            *hasFrame = 1;
+            framePush();
+        }
 
-        // Create binding in the new frame (env)
+        // Create binding in the new frame
         for(Box bindingBox = getCar(&functionBox)
                 ; getTag(&bindingBox) == TAG_CONS
                 ; argumentBox = getCdr(&argumentBox), bindingBox = getCdr(&bindingBox)) {
 
-            Box bindSymbolBox = getCar(&bindingBox),
-                bindValueBox  = getCar(&argumentBox);
+            // Just used to sig_check and trace, can copy straight into defineSymbol otherwise
+            Box bindValueBox  = getCar(&argumentBox);
 
             trace(&bindValueBox);
             sig_check(bindValueBox);
 
-            defineSymbol(bindSymbolBox, bindValueBox);
+            defineSymbol(getCar(&bindingBox), bindValueBox);
         }
-        // Evaluate all statements of a closure, return the last one
+        // NOTE: stops at shorter list
+        // ((lambda (x y) (+ x y)) 1) ; x <- 1 , y <- ???
+        // ((lambda (x) (+ x 1)) 1 2) ; x <- 1
+        // TODO: what happens with SIGNALS?
+        // ((lambda (x) (+ x 1)) 1 SIGNAL) ; ???
 
+        // functionBox: ((x y) (+ x 1) (+ y 2))
         Box statementBox = getCdr(&functionBox),
-            resultBox = boxNil();
+            // statementBox: ((+ x 1) (+ y 2))
+            resultBox = nil;
 
-        for(pointerRegistryPush(&statementBox)
-                ; getTag(&statementBox) == TAG_CONS
-                ; statementBox = getCdr(&statementBox)) {
-
-            // TODO: check local
-            resultBox = GCEval(getCar(&statementBox));
-
-            // If a signal arises, remember to pop both the env and the pointer registry
-            trace(&resultBox);
-            sig_check(resultBox,
-                framePop();
-                pointerRegistryPop();
-            );
+        // Do not deref
+        if(getTag(&statementBox) == TAG_NIL){
+            return nil;
         }
 
-        // TODO: optimize for tail-call
-        framePop();
-        pointerRegistryPop();
+        // early check, prevents instant push-pop when body has a single statement
+        Box nextBox = getCdr(&statementBox);
+        if (getTag(&nextBox) == TAG_CONS) {
+            // Iterate all but the last element
+            for(pointerRegistryPush(&statementBox)
+                    ; getTag(&nextBox) == TAG_CONS
+                    ; statementBox = getCdr(&statementBox), nextBox = getCdr(&statementBox)) {
 
-        trace(&resultBox);
-        return resultBox;
+                resultBox = GCEval(getCar(&statementBox));
 
+                // Stop at errors
+                trace(&resultBox);
+                sig_check(resultBox,
+                    pointerRegistryPop();
+                    return resultBox;
+                );
+
+            }
+            pointerRegistryPop();
+        }
+
+        // Resulting form is composite -> yet to be evaluated
+        *formType = FORM_COMPOSITE;
+        // Return car of statements (which is the last one)
+        return getCar(&statementBox);
+        // Pop pointer registry and destroy frame
     case TAG_PRIMITIVE:
-        // getPrimitive(functionBox) returns a Function:
-        // (function : Box -> Box), call it on argumetns
-        // Cannot trace without breaking TCO
-        return getPrimitive(functionBox)(argumentBox);
+        // If function is a primitive, apply it to arguments and return
+        functionBox = getPrimitive(functionBox)(argumentBox);
+        // Primitives are leaf
+        trace(&functionBox);
+        return functionBox;
     default:
+        // If function is neither primitive nor cons, it's an error
         logError("Cannot apply %s", strTag(getTag(&functionBox)));
         functionBox = boxSignal(SIGNAL_NOT_A_FUNCTION);
+        // Signals are leaf
         trace(&functionBox);
         return functionBox;
     }
@@ -85,11 +117,17 @@ Box applyList(Box box) {
 
 // Evaluate an ast
 // TODO: change name
-// This evaluates elemens of an ast independently:
+// This evaluates ast
 //
 // Atomics evaluate to themself
 // Symbols are resolved
 // Lists are evaluated element by element: (+ a b) -> (<prim@xx> 1 2)
+/**
+ * @brief Evaluate list element-by-element
+ *
+ * @param box Box referencing argument
+ * @return
+ */
 Box GCevalAst(Box box) {
 
     Box headBox = boxNil(),
@@ -149,40 +187,67 @@ Box GCevalAst(Box box) {
 
 // Evaluates an expression
 Box GCEval(Box box) {
+    // This eval is allowed to create a stack frame, setting "hasFrame" in the process
+    int hasFrame = 0;
     for (;;) {
 
         Tag tag = getTag(&box);
 
         if (tag == TAG_CONS) {
+            // Separate function and arguments for convenience
             Box functionBox = getCar(&box),
                 argumentBox = getCdr(&box);
 
-            Function specialForm;
-            FormType formType;
-            // Handle special forms
+            // Special form to call (may call GC)
+            Function GCspecialForm;
+            // != 0 if special form is a leaf statement (define)
+            // == 0 if it's not a leaf statement (if, do)
+            // leaf statements can be returned
+            // non-leaf statements return AST yet to be evaluated (in the current env)
+            FormType leafStatement;
+
+            // first element is a symbol & a special form
             if (getTag(&functionBox) == TAG_SYMBOL
-                    && (specialForm = matchSpecialForm(functionBox, &formType))) {
+                    && (GCspecialForm = matchSpecialForm(functionBox, &leafStatement))) {
                 // Apply special form
-                // May call GC
-                box = specialForm(argumentBox);
-                // If special form was a leaf type return
-                if (formType == FORM_LEAF) {
-                    return box;
-                }
+                box = GCspecialForm(argumentBox);
+                // If leaf statment, return, else continue
+                if (leafStatement) goto evalReturn;
                 continue;
             }
 
-            // Not a special form: evaluate all arguments of the list
+            // It's a cons but not a special form: must evaluate all elements
+            // of the list (returns a new list of evaluated elements)
+            // Uses previous env
+            // (define a 1)(define b 2)(define add +)
+            //
+            // ; OK: (add a b) -> (<pri@01> 1 2)
+            // ; OK: (a b 3) -> (1 2 3)
+            // ; OK: (c 2 3) -> SIGNAL: symbol not defined
+            //
+            // Inside TAG_CONS branch, special forms evaluated restart loop,
+            // if code reaches here it IS a cons which must be evaluated
+            //
+            // ; IMPOSSIBLE: 1 -> 1
+            // ; IMPOSSIBLE: b -> 2
+            //
             box = GCevalAst(box);
+            // TODO: temporary, check signal
+            trace(&box);
+            sig_check(box,
+                if(hasFrame) framePop(););
 
-            // applyList needs to be embedded here and cannot be made into a function call
-            // as the recursion Eval -> applyList -> Eval -> applyList cannot be optimized
-            box = applyList(box);
-
-            return box;
+            // Treat list as function, and apply it
+            box = GCapplyList(box, &leafStatement, &hasFrame);
+            if (leafStatement) goto evalReturn;
+            continue;
         }
         // TODO: Is anything (cons or not) but surely NOT a special form
         box = GCevalAst(box);
+    evalReturn:
+        if (hasFrame) {
+            framePop();
+        }
         return box;
     }
 }
