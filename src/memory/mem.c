@@ -33,10 +33,9 @@ int createMemory() {
     logDebug("Creating memory...");
     randSeed();
     return createParser(TOKEN_BUFFER_MAX_LEN)
-        && createStack(STACK_MAX_LEN)
+        && createStacks(STACK_MAX_LEN)
         && createPointerRegistry(POINTER_REGISTRY_MAX_LEN)
         && createHeap(HEAP_MAX_LEN);
-        
 }
 
 /**
@@ -46,7 +45,7 @@ void destroyMemory() {
     logAlloc("DELETING MEMORY...");
     destroyHeap();
     destroyPointerRegistry();
-    destroyStack();
+    destroyStacks();
     destroyParser();
 }
 

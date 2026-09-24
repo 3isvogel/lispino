@@ -100,7 +100,9 @@ void _lineFail(Signal signal, char* file, int line);
  * @param signal
  * @return boxed signal
  */
-Box boxSignal(Signal signal);
+static inline Box boxSignal(Signal signal) {
+    return setBox((Value)signal, TAG_SIGNAL);
+}
 
 /**
  * @brief Returns the printable verion of a signal

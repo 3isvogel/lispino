@@ -144,7 +144,7 @@ void GCinitializeEnv() {
         setRaw(rawRef, primitivesMap[i].name);
         Box name = setBox((Value) rawRef, TAG_SYMBOL);
         Box definition = setBox((Value) i, TAG_PRIMITIVE);
-        defineSymbol(name, definition);
+        defineSymbol(SYM_STACK, name, definition);
     }
 }
 
@@ -269,7 +269,7 @@ Box specialFormDefine(Box box) {
 
     sig_check(box);
 
-    return defineSymbol(symbolBox, box);
+    return defineSymbol(SYM_STACK, symbolBox, box);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -304,10 +304,11 @@ Box primitiveType(Box box) {
     return setBox(getTag(&argBox), TAG_INT);
 }
 
+// TODO: consider if it's necessary to pass stack argument
 Box primitiveSym(Box box) {
     fprintf(stderr, "; Symbols: ");
-    for (int i = 0; i < stack.head; i++) {
-        fprintf(stderr, "%s ", getRaw(stack.data[i].car));
+    for (int i = 0; i < stacks[SYM_STACK].head; i++) {
+        fprintf(stderr, "%s ", getRaw(stacks[SYM_STACK].data[i].car));
     }
     fprintf(stderr, "\n");
     return nil;

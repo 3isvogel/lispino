@@ -219,16 +219,19 @@ void gc() {
     // Clean raw string map for raw string deduplication
     cleanRawStringMap();
 
-    Frame frame = frameCurrent();
+    // Garbage collect must traverse all stacks
+    for (StackId i = 0; i < STACK_NUM; i++) {
+        Frame frame = frameCurrent(i);
 
-    // Scan all frames and move all accessible data to new active buffer
-    do {
-        for(Cons* ptr = frame.start; ptr < frame.end; ptr++) {
-            // If something is not a ref it will not be moved
-            moveBox(&(ptr->car));
-            moveBox(&(ptr->cdr));
-        }
-    } while(frameOuter(&frame));
+        // Scan all frames and move all accessible data to new active buffer
+        do {
+            for(Cons* ptr = frame.start; ptr < frame.end; ptr++) {
+                // If something is not a ref it will not be moved
+                moveBox(&(ptr->car));
+                moveBox(&(ptr->cdr));
+            }
+        } while(frameOuter(i, &frame));
+    }
 
     // Move all heap accessible from registered pointers
     for(unsigned int i = 0; i < registry.head; i++) {
@@ -246,7 +249,9 @@ void gc() {
     // After the clean reset the amount of bytes used
     heap.requested = heap.head * sizeof(Box);
     logInfo("After GC: used    %d", heap.requested);
-    logInfo("Stack entries:    %d", stack.head);
+    for (StackId i = 0; i < STACK_NUM; i++) {
+        logInfo("Stack entries:    %d", stacks[i].head);
+    }
     logInfo("Pointer registry: %d", registry.head);
 
 }
@@ -316,18 +321,19 @@ BoxRef moveRaw(BoxRef oldString) {
     return newString;
 }
 
-void moveBox(BoxRef box) {
+void moveBox(BoxRef boxRef) {
     // Need definition at top since cannot define inside a switch block
     BoxRef newRef;
-    switch(getTag(box)) {
+loop:
+    switch(getTag(boxRef)) {
         case TAG_CONS:
         case TAG_CLOSURE:
-            if((newRef = checkMoved(box))){
+            if((newRef = checkMoved(boxRef))){
                 validateRef(newRef);
                 // The addres this box is pointing to has been moved to another
                 // location already, insead of copying it just update the old
                 // reference
-                setValue(box, (Value)newRef);
+                setValue(boxRef, (Value)newRef);
                 // The tag doesn't change on GC
                 //setTag(box, getTag(moved));
                 // TODO: check if returning is necessary
@@ -335,22 +341,25 @@ void moveBox(BoxRef box) {
             }
             // If the value was not moved then the addres pointed by this box is
             // a cons which is still in the old buffer: move it to the new one
-            newRef = moveCons((BoxRef) getValue(box));
+            newRef = moveCons((BoxRef) getValue(boxRef));
             // Update reference
-            setValue(box, (Value)newRef);
+            setValue(boxRef, (Value)newRef);
             // Recursively move car and cdr
             moveBox(newRef);
-            // TCO BABY!!!
-            // (I hope so)
-            return moveBox(&newRef[1]);
+            boxRef = &newRef[1];
+            // same as
+            // for(;;) {
+            //     continue;
+            // }
+            goto loop;
         case TAG_STRING:
         case TAG_SYMBOL:
         case TAG_LABEL:
             // As for CONS: check if the value was moved, in which case just
             // link the value
-            if((newRef = checkMoved(box))) {
+            if((newRef = checkMoved(boxRef))) {
                 // Update reference
-                setValue(box, (Value)newRef);
+                setValue(boxRef, (Value)newRef);
                 return;
             }
             // Before copying the raw to the new heap: check that a raw with the
@@ -358,13 +367,13 @@ void moveBox(BoxRef box) {
             // string to the new position
 
             // If the string already exists simply update the reference
-            if ((newRef = getRawStringMap((BoxRef)getValue(box)))) {
-                setValue(box, (Value)newRef);
+            if ((newRef = getRawStringMap((BoxRef)getValue(boxRef)))) {
+                setValue(boxRef, (Value)newRef);
                 return;
             }
             // If the string does not exist in the map copy it into the new heap
-            newRef = moveRaw((BoxRef) getValue(box));
-            setValue(box, (Value)newRef);
+            newRef = moveRaw((BoxRef) getValue(boxRef));
+            setValue(boxRef, (Value)newRef);
             // And add it to the map
             insertRawStringMap(newRef);
             return;
@@ -435,8 +444,9 @@ BoxRef* createRawStringMap(unsigned int minSize) {
     unsigned int size = minSize;// << 1;
 
     // Copied from
-    // https://graphics.stanford.edu/%7Eseander/bithacks.html#RoundUpPowerOf2    
+    // https://graphics.stanford.edu/%7Eseander/bithacks.html#RoundUpPowerOf2
     // size --;
+    // Get first power of two greater than size
     for (unsigned int i = 1; i < halfWordSize; i *= 2) {
         size |= size >> i;
     }
@@ -447,7 +457,7 @@ BoxRef* createRawStringMap(unsigned int minSize) {
     rawMap.probe = primeProbe((unsigned int)(size*3/4));
     if (rawMap.probe == 0)
         fail(SIGNAL_MEM_SETUP_FAIL);
-    
+
     // Allocate contiguous memory, but use 2 separated arrays so I only need to
     // wipe one of them, rawRef points to the beginning of memory up to
     // rawRef + (size * sizeof(BoxRef))

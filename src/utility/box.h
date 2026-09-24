@@ -6,6 +6,7 @@
 
 #pragma once
 
+#include <assert.h>
 #define TAG_LIST \
 X(NIL) \
 X(INT) \
@@ -69,7 +70,9 @@ typedef struct {
  * @param box 
  * @return 
  */
-Value getValue(BoxRef box);
+static inline Value getValue(BoxRef boxRef) {
+    return boxRef->value;
+}
 
 /**
  * @brief returns the tag of a box
@@ -77,7 +80,9 @@ Value getValue(BoxRef box);
  * @param box 
  * @return 
  */
-Tag getTag(BoxRef box);
+static inline Tag getTag(BoxRef boxRef) {
+    return boxRef->tag;
+}
 
 /**
  * @brief sets the value of a box
@@ -85,7 +90,9 @@ Tag getTag(BoxRef box);
  * @param box 
  * @param value 
  */
-void setValue(BoxRef box, Value value);
+static inline void setValue(BoxRef boxRef, Value value) {
+    boxRef->value = value;
+}
 
 /**
  * @brief sets the tag of a box
@@ -93,7 +100,9 @@ void setValue(BoxRef box, Value value);
  * @param box 
  * @param tag 
  */
-void setTag(BoxRef box, Tag tag);
+static inline void setTag(BoxRef boxRef, Tag tag) {
+    boxRef->tag = tag;
+}
 
 /**
  * @brief create a box with specified value and tag
@@ -102,7 +111,12 @@ void setTag(BoxRef box, Tag tag);
  * @param tag 
  * @return 
  */
-Box setBox(Value value, Tag tag);
+static inline Box setBox(Value value, Tag tag) {
+    return (Box) {
+        .value = value,
+        .tag = tag,
+    };
+}
 
 /**
  * @brief Returns a nil box
@@ -122,7 +136,6 @@ static inline Box boxNil() {
  * @return 
  */
 char* strTag(Tag tag);
-
 
 /**
  * @brief Returns the car of a box referencing a cons

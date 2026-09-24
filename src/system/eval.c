@@ -41,7 +41,7 @@ static inline Box GCapplyList(Box box, FormType *formType, int *hasFrame) {
         // Make a new frame
         if(*hasFrame == 0) {
             *hasFrame = 1;
-            framePush();
+            framePush(SYM_STACK);
         }
 
         // Create binding in the new frame
@@ -55,7 +55,7 @@ static inline Box GCapplyList(Box box, FormType *formType, int *hasFrame) {
             trace(&bindValueBox);
             sig_check(bindValueBox);
 
-            defineSymbol(getCar(&bindingBox), bindValueBox);
+            defineSymbol(SYM_STACK, getCar(&bindingBox), bindValueBox);
         }
         // NOTE: stops at shorter list
         // ((lambda (x y) (+ x y)) 1) ; x <- 1 , y <- ???
@@ -177,7 +177,7 @@ Box GCevalAst(Box box) {
         return headBox;
 
     case TAG_SYMBOL:
-        box = getSymbol(&box);
+        box = getSymbol(SYM_STACK, &box);
         trace(&box);
         return box;
     default:
@@ -235,7 +235,7 @@ Box GCEval(Box box) {
             // TODO: temporary, check signal
             trace(&box);
             sig_check(box,
-                if(hasFrame) framePop(););
+                if(hasFrame) framePop(SYM_STACK););
 
             // Treat list as function, and apply it
             box = GCapplyList(box, &leafStatement, &hasFrame);
@@ -246,7 +246,7 @@ Box GCEval(Box box) {
         box = GCevalAst(box);
     evalReturn:
         if (hasFrame) {
-            framePop();
+            framePop(SYM_STACK);
         }
         return box;
     }

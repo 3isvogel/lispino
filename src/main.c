@@ -11,22 +11,7 @@
 
 #include <stdio.h>
 
-// FIXME: problems with GC, it changes address of everything, so either
-// - add ANOTHER stack in which to store vars in boxed form and update pointers
-//   when gc() is called and only point to them from the code, it may be good
-//   if (use actual vars like would normally do, push value on stack right
-//   before the call that might move it, pop it right after
-// - use a specific pattern for gc()
-// - consider invalid any value after a function call that may allocate values,
-//   re-solve symbols
-// - add Box parameter to gc() -> gc(Box) and treat it as an additional root:
-//   do not collect data attached to it and update it (or return its new value)
-//   to keep it valid through gc
-//
-// - Register pointers before any GC can happen and pop it (needs another stack)
-//   keep the rest of the code the same
-
-#define K (1024 * 1024)
+#define K (1024)
 
 void printsize() {
     unsigned int tokenBufferSize,
@@ -44,7 +29,7 @@ void printsize() {
     // Using two heaps: copy GC
     totalSize = tokenBufferSize + stackSize + heapSize + pointerRegistrySize + rawMapSize;
 
-    logInfo("%18s %10s %10s", "Memory", "size (B)", "size (MB)");
+    logInfo("%18s %10s %10s", "Memory", "size (B)", "size (KB)");
     logInfo("%18s %10u %10u", "Token buffer:",      tokenBufferSize, tokenBufferSize/K);
     logInfo("%18s %10u %10u", "Symbols stack:",     stackSize, stackSize/K);
     logInfo("%18s %10u %10u", "Heaps (x2):",        heapSize, (heapSize/K));

@@ -19,12 +19,8 @@ void _lineFail(Signal signal, char* file, int line) {
     exit(signal);
 }
 
-Box boxSignal(Signal signal) {
-    return setBox((Value)signal, TAG_SIGNAL);
-}
-
 char* strSignal(Signal signal) {
-    if (signal >= SIGNAL_SIZE)
+    if (unlikely(signal >= SIGNAL_SIZE))
         return printableSignals[SIGNAL_UNKNOWN_FAILURE];
     return printableSignals[signal];
 }

@@ -3,6 +3,20 @@
 #include <utility/box.h>
 #include <utility/signals.h>
 
+// Expose stacks without exposing pointers, allows application to reference them
+// by index, data structure will be saved on a stack vector, stack content is
+// allocated once using malloc
+#define STACK_LIST \
+X(SYM) \
+X(BIND)
+
+typedef enum {
+#define X(x) x##_STACK,
+    STACK_LIST
+    STACK_NUM
+#undef X
+} StackId;
+
 // Accessory struct to keep the sate of current frame
 typedef struct {
     Cons *start, *end;
@@ -11,7 +25,7 @@ typedef struct {
 /**
  * @brief Deallocate the stack if it exists
  */
-void destroyStack();
+void destroyStacks();
 
 /**
  * @brief Allocate a new stack
@@ -19,12 +33,12 @@ void destroyStack();
  * @param size 
  * @return A pointer to cons, indicating if the operation was successful or not
  */
-Cons* createStack(unsigned int size);
+Cons* createStacks(unsigned int size);
 
 /**
  * @brief Create a new frame in the symbol stack
  */
-void framePush();
+void framePush(StackId stack);
 
 /**
  * @brief Reset the last frame of the symbol stack
@@ -32,12 +46,12 @@ void framePush();
  * This function should operate the same as a subsequent call of
  * framePop(); framePush(); but I might optimize it
  */
-void frameRst();
+void frameRst(StackId stack);
 
 /**
  * @brief Delete the last frame from the symbol stack
  */
-void framePop();
+void framePop(StackId stack);
 
 /**
  * @brief Define symbol in the current stack frame
@@ -49,14 +63,14 @@ void framePop();
  * @param definition 
  * @return 
  */
-Box defineSymbol(Box name, Box definition);
+Box defineSymbol(StackId stack, Box name, Box definition);
 
 /**
  * @brief Returns the value of a symbol
  *
  * @return the value of the symbol
  */
-Box getSymbol(BoxRef nameRef);
+Box getSymbol(StackId stack, BoxRef nameRef);
 
 /**
  * @brief Initialize the environment with the primitives

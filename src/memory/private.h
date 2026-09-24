@@ -9,14 +9,14 @@ typedef struct {
     unsigned int size;
     unsigned int base;
 } Stack;
-extern Stack stack;
+extern Stack stacks[STACK_NUM];
 
 /**
  * @brief Return the indexes of the current frame
  *
  * @return 
  */
-Frame frameCurrent();
+Frame frameCurrent(StackId stack);
 
 /**
  * @brief Modify in place the parameter frame if an outer frame exists
@@ -26,4 +26,4 @@ Frame frameCurrent();
  * @param frame 
  * @return NULL if there is no outer frame
  */
-int frameOuter(Frame* frame);
+int frameOuter(StackId stack, Frame* frame);
