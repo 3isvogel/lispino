@@ -1,0 +1,25 @@
+* TODO Strings in separated heap
+:PROPERTIES:
+:ID:       string-heap
+:END:
+
+- [ ] Hold strings in separated stack
+- [ ] Create association table to retreive strings
+- [ ] Strings need to hold ref to table to be able to update pointer to them
+  
+* TODO Implement multiple Heap                                      :blocked:
+:PROPERTIES:
+:BLOCKER:  string-heap
+:END:
+
+- [ ] Either of the two
+  - Just mark & sweep
+  - Generational copy GC ??  
+
+* TODO In-stack applyList
+- Instead of creating a new list everytime a list is evaluated with evalAst
+  to be applied, eval one-by-one and push directly binding on stack
+  - Resolve function symbol, if not func or closure, return signal
+  - If function -> to be determined
+  - If closure -> Eval parameters and save directly in binding (avoids
+    creating evaluated Ast)
