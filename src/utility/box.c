@@ -1,5 +1,7 @@
 #include "box.h"
+#include <system/printer.h>
 #include <utility/signals.h>
+#include <stdio.h>
 
 #define X(x) #x,
 char* printableTag[TAG_SIZE] = {
