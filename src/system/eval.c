@@ -68,7 +68,7 @@ Box GCevalAst(Box box) {
         return headBox;
 
     case TAG_SYMBOL:
-        box = getSymbol(SYM_STACK, &box);
+        box = getSymbol(&box);
         trace(&box);
         return box;
     default:
@@ -102,7 +102,7 @@ static inline Box GCapplyList(Box box, FormType *formType, int *hasFrame) {
         // Make a new frame
         if(*hasFrame == 0) {
             *hasFrame = 1;
-            framePush(SYM_STACK);
+            framePush();
         }
 
         // Create binding in the new frame
@@ -116,7 +116,7 @@ static inline Box GCapplyList(Box box, FormType *formType, int *hasFrame) {
             trace(&bindValueBox);
             sig_check(bindValueBox);
 
-            defineSymbol(SYM_STACK, getCar(&bindingBox), bindValueBox);
+            defineSymbol(getCar(&bindingBox), bindValueBox);
         }
         // NOTE: stops at shorter list
         // ((lambda (x y) (+ x y)) 1) ; x <- 1 , y <- ???
@@ -191,7 +191,7 @@ Box GCEval(Box box) {
         Tag tag = getTag(&box);
 
         if (tag == TAG_SYMBOL) {
-            box = getSymbol(SYM_STACK, &box);
+            box = getSymbol(&box);
         } else if (tag == TAG_CONS) {
             // Separate function and arguments for convenience
             functionBox = getCar(&box);
@@ -240,7 +240,7 @@ Box GCEval(Box box) {
             // If leaf statment, return, else continue
             if (!leafStatement) continue;
         }
-        if (hasFrame) { framePop(SYM_STACK); }
+        if (hasFrame) { framePop(); }
         return box;
     }
 }

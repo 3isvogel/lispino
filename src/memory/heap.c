@@ -219,18 +219,16 @@ void gc() {
     cleanRawStringMap();
 
     // Garbage collect must traverse all stacks
-    for (StackId i = 0; i < STACK_NUM; i++) {
-        Frame frame = frameCurrent(i);
+    Frame frame = frameCurrent();
 
-        // Scan all frames and move all accessible data to new active buffer
-        do {
-            for(Cons* ptr = frame.start; ptr < frame.end; ptr++) {
-                // If something is not a ref it will not be moved
-                moveBox(&(ptr->car));
-                moveBox(&(ptr->cdr));
-            }
-        } while(frameOuter(i, &frame));
-    }
+    // Scan all frames and move all accessible data to new active buffer
+    do {
+        for(Cons* ptr = frame.start; ptr < frame.end; ptr++) {
+            // If something is not a ref it will not be moved
+            moveBox(&(ptr->car));
+            moveBox(&(ptr->cdr));
+        }
+    } while(frameOuter(&frame));
 
     // Move all heap accessible from registered pointers
     for(unsigned int i = 0; i < registry.head; i++) {
@@ -248,9 +246,7 @@ void gc() {
     // After the clean reset the amount of bytes used
     heap.requested = heap.head * sizeof(Box);
     logInfo("After GC: used    %d", heap.requested);
-    for (StackId i = 0; i < STACK_NUM; i++) {
-        logInfo("Stack entries:    %d", stacks[i].head);
-    }
+    logInfo("Stack entries:    %d", stack.head);
     logInfo("Pointer registry: %d", registry.head);
 
 }
