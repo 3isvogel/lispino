@@ -181,7 +181,6 @@ Box setRaw(BoxRef boxRef, char *string) {
     return setBox((Value)boxRef, TAG_NIL);
 }
 
-// TODO: deref check
 char* getRaw(Box box) {
     BoxRef ref = (BoxRef)getValue(&box);
     return (char*)(ref+1);

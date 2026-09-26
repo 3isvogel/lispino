@@ -13,6 +13,69 @@
 Box GCevalAst(Box box);
 Box evalForm(Box box);
 
+/**
+ * @brief Evaluate list element-by-element
+ *
+ * @param box Box referencing argument
+ * @return
+ */
+Box GCevalAst(Box box) {
+
+    Box headBox = boxNil(),
+        tailBox = boxNil();
+
+    switch (getTag(&box)) {
+    case TAG_CONS:
+
+        pointerRegistryPush(&headBox);
+        pointerRegistryPush(&tailBox);
+        pointerRegistryPush(&box);
+
+        headBox = setBox((Value) GCnewCons(), TAG_CONS);
+        tailBox = headBox;
+
+        Box elementBox = getCar(&box);
+        Box tempBox = GCEval(elementBox);
+        // Check for signals
+        trace(&tempBox);
+        sig_check(tempBox,
+            headBox = tempBox;
+            goto evalAstReturn;
+        );
+        setCar(&tailBox, tempBox);
+        box = getCdr(&box);
+
+        while (getTag(&box) == TAG_CONS) {
+            setCdr(&tailBox, setBox((Value) GCnewCons(), TAG_CONS));
+            tailBox = getCdr(&tailBox);
+            elementBox = getCar(&box);
+            tempBox = GCEval(elementBox);
+            // Check for signals
+            trace(&tempBox);
+            sig_check(tempBox,
+                headBox = tempBox;
+                goto evalAstReturn;
+            );
+            setCar(&tailBox, tempBox);
+            box = getCdr(&box);
+        }
+
+    evalAstReturn:
+        pointerRegistryPop();
+        pointerRegistryPop();
+        pointerRegistryPop();
+
+        return headBox;
+
+    case TAG_SYMBOL:
+        box = getSymbol(SYM_STACK, &box);
+        trace(&box);
+        return box;
+    default:
+        return box;
+    }
+}
+
 // FIXME: highly dependent on Eval, should embed it
 /**
  * @brief Apply the evaluated list
@@ -23,14 +86,12 @@ Box evalForm(Box box);
  * @return result of applying value
  */
 static inline Box GCapplyList(Box box, FormType *formType, int *hasFrame) {
+    box = GCevalAst(box);
+    trace(&box);
+    sig_check(box);
 
     // Default is leaf (most comon)
     *formType = FORM_LEAF;
-
-    // TODO: maybe duplicate
-    // Early exit
-    trace(&box);
-    sig_check(box);
 
     // For convenience, keep function and argument box separated
     Box functionBox = getCar(&box),
@@ -115,139 +176,71 @@ static inline Box GCapplyList(Box box, FormType *formType, int *hasFrame) {
     }
 }
 
-// Evaluate an ast
-// TODO: change name
-// This evaluates ast
-//
-// Atomics evaluate to themself
-// Symbols are resolved
-// Lists are evaluated element by element: (+ a b) -> (<prim@xx> 1 2)
-/**
- * @brief Evaluate list element-by-element
- *
- * @param box Box referencing argument
- * @return
- */
-Box GCevalAst(Box box) {
-
-    Box headBox = boxNil(),
-        tailBox = boxNil();
-
-    switch (getTag(&box)) {
-    case TAG_CONS:
-
-        pointerRegistryPush(&headBox);
-        pointerRegistryPush(&tailBox);
-        pointerRegistryPush(&box);
-
-        headBox = setBox((Value) GCnewCons(), TAG_CONS);
-        tailBox = headBox;
-
-        Box elementBox = getCar(&box);
-        Box tempBox = GCEval(elementBox);
-        // Check for signals
-        trace(&tempBox);
-        sig_check(tempBox,
-            headBox = tempBox;
-            goto evalAstReturn;
-        );
-        setCar(&tailBox, tempBox);
-        box = getCdr(&box);
-
-        while (getTag(&box) == TAG_CONS) {
-            setCdr(&tailBox, setBox((Value) GCnewCons(), TAG_CONS));
-            tailBox = getCdr(&tailBox);
-            elementBox = getCar(&box);
-            tempBox = GCEval(elementBox);
-            // Check for signals
-            trace(&tempBox);
-            sig_check(tempBox,
-                headBox = tempBox;
-                goto evalAstReturn;
-            );
-            setCar(&tailBox, tempBox);
-            box = getCdr(&box);
-        }
-
-    evalAstReturn:
-        pointerRegistryPop();
-        pointerRegistryPop();
-        pointerRegistryPop();
-
-        return headBox;
-
-    case TAG_SYMBOL:
-        box = getSymbol(SYM_STACK, &box);
-        trace(&box);
-        return box;
-    default:
-        return box;
-    }
-}
-
 // Evaluates an expression
 Box GCEval(Box box) {
     // This eval is allowed to create a stack frame, setting "hasFrame" in the process
     int hasFrame = 0;
+    Box functionBox, argumentBox;
+    // != 0 if special form is a leaf statement (define)
+    // == 0 if it's not a leaf statement (if, do)
+    // leaf statements can be returned
+    // non-leaf statements return AST yet to be evaluated (in the current env)
+    FormType leafStatement;
     for (;;) {
 
         Tag tag = getTag(&box);
 
-        if (tag == TAG_CONS) {
+        if (tag == TAG_SYMBOL) {
+            box = getSymbol(SYM_STACK, &box);
+        } else if (tag == TAG_CONS) {
             // Separate function and arguments for convenience
-            Box functionBox = getCar(&box),
-                argumentBox = getCdr(&box);
+            functionBox = getCar(&box);
+            argumentBox = getCdr(&box);
 
             // Special form to call (may call GC)
             Function GCspecialForm;
-            // != 0 if special form is a leaf statement (define)
-            // == 0 if it's not a leaf statement (if, do)
-            // leaf statements can be returned
-            // non-leaf statements return AST yet to be evaluated (in the current env)
-            FormType leafStatement;
-
-            // first element is a symbol & a special form
             if (getTag(&functionBox) == TAG_SYMBOL
                     && (GCspecialForm = matchSpecialForm(functionBox, &leafStatement))) {
+                // First element is a symbol & a special form
                 // Apply special form
                 box = GCspecialForm(argumentBox);
-                // If leaf statment, return, else continue
-                if (leafStatement) goto evalReturn;
-                continue;
+            } else {
+                // Not a special form, apply it, can be a nonsymbol?
+                box = GCapplyList(box, &leafStatement, &hasFrame);
+                // It's a cons but not a special form: must evaluate all elements
+                // of the list (returns a new list of evaluated elements)
+                // Uses previous env
+                // (define a 1)(define b 2)(define add +)
+                //
+                // ; OK: (add a b) -> (<pri@01> 1 2)
+                // ; OK: (a b 3) -> (1 2 3)
+                // ; OK: (c 2 3) -> SIGNAL: symbol not defined
+                //
+                // Inside TAG_CONS branch, special forms evaluated restart loop,
+                // if code reaches here it IS a cons which must be evaluated
+                //
+                // ; IMPOSSIBLE: 1 -> 1
+                // ; IMPOSSIBLE: b -> 2
+                //
+                // TODO: Instead of calling GCevalAst
+                // (a b 3) -> (1 2 3)
+                // solve the symbols and save them onto secondary (bindings) stack
+                // If call is a primitive -> rewrite primitives to expect arguments from a stack
+                // If call is a closure   -> - Copy symbols from temporary bind frame onto main stack
+                //                           - Delete frame
+                //                           - Normal call
+                //                           - Cannot use a single stack, otherwise functions like
+                //                           - ((lambda (x y)) (+ y 1) (+ x 1)) clash as they may re-utilize
+                //                             the same symbols, yet, I know that the cons generated by
+                //                             GCevalAST is not going to live long (is discarded after apply)
+                //
+                // Do not allocate a new list for call
+                // Treat list as function, and apply it
             }
-
-            // It's a cons but not a special form: must evaluate all elements
-            // of the list (returns a new list of evaluated elements)
-            // Uses previous env
-            // (define a 1)(define b 2)(define add +)
-            //
-            // ; OK: (add a b) -> (<pri@01> 1 2)
-            // ; OK: (a b 3) -> (1 2 3)
-            // ; OK: (c 2 3) -> SIGNAL: symbol not defined
-            //
-            // Inside TAG_CONS branch, special forms evaluated restart loop,
-            // if code reaches here it IS a cons which must be evaluated
-            //
-            // ; IMPOSSIBLE: 1 -> 1
-            // ; IMPOSSIBLE: b -> 2
-            //
-            box = GCevalAst(box);
-            // TODO: temporary, check signal
-            trace(&box);
-            sig_check(box,
-                if(hasFrame) framePop(SYM_STACK););
-
-            // Treat list as function, and apply it
-            box = GCapplyList(box, &leafStatement, &hasFrame);
-            if (leafStatement) goto evalReturn;
-            continue;
+            // If leaf statment, return, else continue
+            if (!leafStatement) continue;
         }
-        // TODO: Is anything (cons or not) but surely NOT a special form
-        box = GCevalAst(box);
-    evalReturn:
-        if (hasFrame) {
-            framePop(SYM_STACK);
-        }
+        if (hasFrame) { framePop(SYM_STACK); }
         return box;
     }
 }
