@@ -41,6 +41,7 @@ X(define,    , Define, LEAF)
 #define PRIMITIVES_LIST     \
 X(car,      Car)            \
 X(cdr,      Cdr)            \
+X(cons,     Cons)           \
 /*X(cons,  Cons)*/          \
 X(?,        Type)           \
 X(sym,      Sym)            \
@@ -317,6 +318,17 @@ Box primitiveCdr(BoxArgs args) {
     //                                        ^^^^^^^^
     //                                        Should be a Cons, but do I care?
     return getCdr(args.data);
+}
+
+Box primitiveCons(BoxArgs args) {
+    if (args.size < 1) {
+        logError("Provide at least one argument to cons");
+        return boxSignal(SIGNAL_WRONG_ARGS_NUMBER);
+    }
+    Cons* cons = GCnewCons();
+    cons->car = args.data[0];
+    if(likely(args.size > 1)) cons->cdr = args.data[1];
+    return setBox((Value)cons, TAG_CONS);
 }
 
 Box primitiveType(BoxArgs args) {
