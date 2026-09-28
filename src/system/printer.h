@@ -1,6 +1,12 @@
 #pragma once
 
 #include <utility/box.h>
+#include <stdio.h>
+
+typedef enum {
+    NON_READABLE,
+    READABLE
+} Readable;
 
 /**
  * @brief Print the value of a box
@@ -8,7 +14,7 @@
  * @param box 
  * @param readable print readable
  */
-void innerPrint(Box box, int readable);
+void innerPrint(Box box, Readable readable, FILE *file);
 
 /**
  * @brief Print the value of a box
@@ -17,4 +23,4 @@ void innerPrint(Box box, int readable);
  *
  * @param box 
  */
-void Print(Box box);
+void Print(Box box, FILE* file);

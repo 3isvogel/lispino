@@ -26,7 +26,7 @@ do {\
 
 #define _traceBox(func, file, line ,boxRef)\
     do {\
-        if(getTag(boxRef) == TAG_SIGNAL) {\
+        if(unlikely(getTag(boxRef) == TAG_SIGNAL)) {\
             printf(";   at %s ("file":" STR(line) "):\n", func);\
             /* Print(boxRef);*/\
         }\
@@ -57,12 +57,14 @@ X(TOKEN_TOO_LONG, "")           \
 X(HEAP_FULL, "")                \
 X(STACK_FULL, "")               \
 X(POINTER_REGISTRY_FULL, "")    \
+X(BINDING_STACK_FULL, "")       \
 X(RAW_MAP_FULL, "")             \
 X(SYNTAX_ERROR, "")             \
 X(BAD_REFERENCE, "")            \
 X(FAIL_RAWMEMORY_CHECK, "")     \
 X(POINTER_REGISTRY_LEAKING, "") \
 X(POINTER_REGISTRY_EMPTY, "")   \
+X(BINDING_STACK_EMPTY, "")   \
 X(WRONG_ARGUMENTS, "")          \
 X(TO_DO, "")
 
@@ -73,16 +75,27 @@ SIGNAL_LIST
 }Signal;
 #undef X
 
-/**
- * @brief Prints message and fail
- *
- * This needs to be a macro to make sure the line and file reported are correct
- * ones
- *
- * @param message 
- */
-#define todo(message) do { logError("TODO: %s", message); destroyMemory(); exit(SIGNAL_TO_DO); } while (0)
-
+// Prevents TODOs in release code
+#ifdef BUILD_RELEASE
+#define todo(msg) \
+/* Fail: cannot leave TODOs in release */ \
+\
+static_assert(0,msg)
+#else
+#define todo(message) do { \
+/** \
+ * @brief Prints message and fail \
+ * \
+ * This needs to be a macro to make sure the line and file reported are correct \
+ * ones \
+ * \
+ * @param message \
+ */ \
+\
+    logError("TODO: %s", message); destroyMemory() ;\
+    exit(SIGNAL_TO_DO); \
+} while (0)
+#endif
 
 /**
  * @brief Prints the readable signal and ends the process cleaning its memory

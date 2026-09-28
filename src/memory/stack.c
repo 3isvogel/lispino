@@ -124,7 +124,7 @@ Box defineSymbol(Box name, Box definition) {
     // TODO: consider removing this check
     if (getTag(&name) != TAG_SYMBOL) {
         fprintf(stderr, "; DEFINE_SYMBOL: [%s]", strTag(getTag(&name)));
-        Print(name);
+        Print(name, stderr);
         return boxSignal(SIGNAL_WRONG_TYPE);
     }
 
@@ -157,7 +157,7 @@ Box getSymbol(BoxRef nameRef) {
     // TODO: consider removing this check
     if (getTag(nameRef) != TAG_SYMBOL) {
         fprintf(stderr, "; GET_SYMBOL: [%s]", strTag(getTag(nameRef)));
-        Print(follow(nameRef));
+        Print(follow(nameRef), stderr);
         return boxSignal(SIGNAL_WRONG_TYPE);
     }
     // If a string is saved as X.AAA.ssss... just move to the next Box pointer
@@ -166,21 +166,21 @@ Box getSymbol(BoxRef nameRef) {
     // Search from the inner to the outer frame, until found or last frame is
     // reached
     Frame frame = frameCurrent();
-    do {        
+    do {
         for (Cons* cons = frame.start; cons < frame.end; cons ++) {
-    
+
             // Extract raw string, no need to check the type of this as I made it
             // impossible before to add any non-string symbol, if all additions are
             // done through this function there will never be non-string symbols
             char* currentName = getRaw(cons->car);
-    
+
             // Really slow symbol search
             if(strcmp(rawName, currentName) == 0) {
                 return cons->cdr;
             }
         }
     } while(frameOuter(&frame));
-    
+
     // The symbol is not defined
     logError("; Symbol not defined: %s", rawName);
     return boxSignal(SIGNAL_SYMBOL_NOT_DEFINED);
@@ -194,3 +194,43 @@ Box getSymbol(BoxRef nameRef) {
 //     }
 //     return prim_env;
 // }
+
+// TODO: This is a copy-paste of pointer registry to handle different types, they will eventually
+//       collide into a single implementation: either by becoming generic stacks
+//       or by using pointerRegistry to store boxes rather than pointers (works the other way around)
+
+BindStack bindStack = {0};
+
+void destroyBindStack() {
+    if (bindStack.data != NULL) free(bindStack.data);
+    bindStack.data = NULL;
+    bindStack.head = 0;
+}
+
+unsigned int createBindStack(unsigned int size) {
+    destroyBindStack();
+
+    // NOTE: It would take just a small change to merge the two implementations
+    bindStack.data = (Box*) halloc(size * sizeof(Box));
+    if(!bindStack.data) return  0;
+    bindStack.size = size;
+    bindStack.head = 0;
+    return 1;
+}
+
+// NOTE: there is no need to reference frames, user has to count push/pop
+BoxRef bindStackReserveN(unsigned int n) {
+    if (bindStack.head + n > bindStack.size) fail(SIGNAL_BINDING_STACK_FULL);
+    const BoxRef ret = &bindStack.data[bindStack.head];
+    bindStack.head += n;
+    return ret;
+}
+
+// NOTE: differently from pointerRegistry stack I need either a peek function or
+// a value-returing pop function
+Box bindStackPopN(unsigned int n) {
+    if (unlikely(bindStack.head < n)) fail(SIGNAL_BINDING_STACK_EMPTY);
+    const Box ret = bindStack.data[bindStack.head];
+    bindStack.head-=n;
+    return ret;
+}

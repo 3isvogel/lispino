@@ -5,6 +5,7 @@
 
 #include "functions.h"
 #include "memory/heap.h"
+#include "memory/mem.h"
 #include "memory/private.h"
 #include "memory/stack.h"
 #include "system/eval.h"
@@ -46,7 +47,8 @@ X(sym,      Sym)            \
 X(form,     Form)           \
 X(+,        IntAdd)         \
 X(eq,       Eq)             \
-X(println,  Println)
+X(println,  Println)        \
+X(exit,     Exit)
 
 
 // Code generation macros, better not looking into this {{{
@@ -57,12 +59,17 @@ X(println,  Println)
         Function function;
     } FunctionMap;
 
+    typedef struct {
+        char* name;
+        SpecialForm function;
+    } SpecialFormMap;
+
     // Internal: forward declaration of all supported special forms and primitives
     // NOTE: special forms and primitives have the same signature
     #define X(name, prefix, function, leaf)   Box prefix##specialForm##function(Box box);
     SPECIAL_FORMS_LIST
     #undef X
-    #define X(name, function)   Box primitive##function(Box box);
+    #define X(name, function)   Box primitive##function(BoxArgs args);
     PRIMITIVES_LIST
     #undef X
 
@@ -72,7 +79,7 @@ X(println,  Println)
     typedef enum {
         SPECIAL_FORMS_LIST
         SPECIAL_FORMS_SIZE
-    } SpecialForm;
+    } Form;
     #undef X
     #define X(name, function) PRIMITIVE_##function,
     typedef enum {
@@ -85,7 +92,7 @@ X(println,  Println)
     // Special forms definitions are searched straight from the array,
     // Primitives array is instead used to initialize the environment
     #define X(_name, prefix, _function, leaf) {.name = #_name, .function = prefix##specialForm##_function},
-    FunctionMap specialFormsMap[SPECIAL_FORMS_SIZE] = {
+    SpecialFormMap specialFormsMap[SPECIAL_FORMS_SIZE] = {
         SPECIAL_FORMS_LIST
     };
     #undef X
@@ -113,7 +120,7 @@ X(println,  Println)
 
 // }}}
 
-Box primitiveUnknown(Box box);
+Box primitiveUnknown(BoxArgs args);
 
 Function getPrimitive(Box box) {
     if (getTag(&box) != TAG_PRIMITIVE) return primitiveUnknown;
@@ -122,7 +129,7 @@ Function getPrimitive(Box box) {
     return primitivesMap[functionId].function;
 }
 
-Function matchSpecialForm(Box box, FormType* isLeafStatement) {
+SpecialForm matchSpecialForm(Box box, FormType* isLeafStatement) {
     char* name = getRaw(box);
     for (unsigned int i = 0; i < SPECIAL_FORMS_SIZE; i++) {
         if (strcmp(name, specialFormsMap[i].name) == 0) {
@@ -241,6 +248,17 @@ Box specialFormLambda(Box box) {
         Box bindingBox = getCar(&bindingsBox);
         if (getTag(&bindingBox) != TAG_SYMBOL) return boxSignal(SIGNAL_LAMBDA_ARGS);
     }
+    doDebug(
+        Print(getCar(&box), stderr);
+        logDebug(" ^ Bindings");
+        int i;
+        Box iter;
+        for(iter = getCdr(&box), i = 0; getTag(&iter) == TAG_CONS; iter = getCdr(&iter), i++) {
+            fprintf(stderr, "%2d: ", i);
+            Print(getCar(&iter), stderr);
+        }
+        logDebug(" ^ Expressions");
+    );
 
     // Statements can potentially be anything, if it's a cons it's a proper
     // lambda which will perform actions, if it's a nil it will simply return
@@ -260,7 +278,6 @@ Box specialFormDefine(Box box) {
     if (getTag(&symbolBox) != TAG_SYMBOL) {
         return boxSignal(SIGNAL_WRONG_ARGUMENTS);
     }
-
     box = getCdr(&box);
     box = getCar(&box);
     pointerRegistryPush(&symbolBox);
@@ -269,6 +286,11 @@ Box specialFormDefine(Box box) {
 
     sig_check(box);
 
+    doDebug(
+        Print(box, stderr);
+        logDebug(" ^ Definition of \"%s\"", getRaw(symbolBox));
+    );
+
     return defineSymbol(symbolBox, box);
 }
 
@@ -276,36 +298,32 @@ Box specialFormDefine(Box box) {
 /// Primitives
 ////////////////////////////////////////////////////////////////////////////////
 
-Box primitiveUnknown(Box box) {
+Box primitiveUnknown(BoxArgs args) {
     logError("Primitive not found");
-    box = boxSignal(SIGNAL_BAD_REFERENCE);
+    const Box box = boxSignal(SIGNAL_BAD_REFERENCE);
     trace(&box);
     return box;
 }
 
-Box primitiveCar(Box box) {
+Box primitiveCar(BoxArgs args) {
     // Argument must be a cons, whose cdr is [anything] and car is another cons
     //                                        ^^^^^^^^
     //                                        Should be a Cons, but do I care?
-    Box argumentBox = getCar(&box);
-    return getCar(&argumentBox);
+    return getCar(args.data);
 }
 
-Box primitiveCdr(Box box) {
+Box primitiveCdr(BoxArgs args) {
     // Argument must be a cons, whose cdr is [anything] and car is another cons
     //                                        ^^^^^^^^
     //                                        Should be a Cons, but do I care?
-    Box argumentBox = getCar(&box);
-    return getCdr(&argumentBox);
+    return getCdr(args.data);
 }
 
-Box primitiveType(Box box) {
-    Box argBox = getCar(&box);
-    return setBox(getTag(&argBox), TAG_INT);
+Box primitiveType(BoxArgs args) {
+    return setBox(getTag(args.data), TAG_INT);
 }
 
-// TODO: consider if it's necessary to pass stack argument
-Box primitiveSym(Box box) {
+Box primitiveSym(BoxArgs args) {
     fprintf(stderr, "; Symbols: ");
     for (int i = 0; i < stack.head; i++) {
         fprintf(stderr, "%s ", getRaw(stack.data[i].car));
@@ -314,79 +332,94 @@ Box primitiveSym(Box box) {
     return nil;
 }
 
-Box primitiveForm(Box box) {
+Box primitiveForm(BoxArgs args) {
     printf("PrimForm");
-    for (int i = 1; i < SPECIAL_FORMS_SIZE; i++) {
+    for (unsigned int i = 1; i < SPECIAL_FORMS_SIZE; i++) {
         printf("%s ", specialFormsMap[i].name);
     }
     printf("\n");
     return nil;
 }
 
-Box primitiveIntAdd(Box box) {
-    int acc = 0;
-    Box iter = getCar(&box),
-        val = iter;
-    if (getTag(&val) == TAG_INT) {
-        acc = getValue(&val);
-
-        for (iter = getCdr(&box), val = getCar(&iter);
-                getTag(&iter) != TAG_NIL;
-                iter = getCdr(&iter), val = getCar(&iter)) {
-            if (getTag(&val) != TAG_INT) {
-                logError("Cannot add %s", strTag(getTag(&val)));
-                box = boxSignal(SIGNAL_WRONG_TYPE);
-            }
-            acc += getValue(&val);
-        }
+Box primitiveIntAdd(BoxArgs args) {
+    Value acc = 0;
+    unsigned int i = 0;
+    for(; i < args.size && getTag(&args.data[i]) == TAG_INT; i++) {
+        acc += getValue(&args.data[i]);
     }
-    return setBox(acc, TAG_INT);
+    if (likely(i == args.size)) return setBox(acc, TAG_INT);
+    const Box box = args.data[i];
+    if (getTag(&box) == TAG_SIGNAL) return box;
+    logError("Cannot add %s", strTag(getTag(&box)));
+    return boxSignal(SIGNAL_WRONG_TYPE);
 }
 
 int consEq(BoxRef a, BoxRef b) {
-    if (a == b) return 1;
     todo("consEq not implemented");
     return 0;
 }
 
-Box primitiveEq(Box box) {
-    Box first, iter, val;
-
-    int eq = 1;
-
-    for(first = getCar(&box), iter = getCdr(&box), val = getCar(&iter);
-            getTag(&iter) != TAG_NIL;
-            iter = getCdr(&iter), val = getCar(&iter)) {
-
-        sig_check(iter);
-        // TODO: check if it's equivalent
-        if (getTag(&iter) == TAG_SIGNAL) return boxSignal(getValue(&iter));
-
-        const Tag ta = getTag(&first), tb = getTag(&val);
-        const Value va = getValue(&first), vb = getValue(&val);
-        if (ta != tb) {
-            eq = 0;
-        } else if (ta == TAG_INT) {
-            if (va != vb) eq = 0;
-        } else if (ta == TAG_CONS) {
-            eq = consEq((BoxRef) NULL, (BoxRef) NULL);
-        // Or any other strcmp
-        } else if (ta == TAG_STRING) {
-            todo("string eq not implemented");
-        }
-        if(!eq) return nil;
-    }
-    return setBox(1, TAG_INT);
+int strEq(BoxRef a, BoxRef b) {
+    todo("consEq not implemented");
+    return 0;
 }
 
-Box primitivePrintln(Box box) {
-    Box val, iter;
-    for(iter = box, val = getCar(&iter);
-            getTag(&iter) != TAG_NIL;
-            iter = getCdr(&iter), val = getCar(&iter)) {
-        sig_check(box);
-        innerPrint(val, 1);
+Box primitiveEq(BoxArgs args) {
+    const Box box = setBox(1, TAG_INT);
+    if (args.size == 0) {
+        logDebug("eq: none");
+        return box;
     }
-    printf("\n");
+    if (args.size == 1) {
+        logDebug("eq: single");
+        sig_check(args.data[0]); return box;
+    }
+    logDebug("eq: multi");
+    int eq = 1;
+    const Tag tag     = getTag(args.data);
+    const Value value = getValue(args.data);
+    for(int i = 1; i < args.size && eq; i++) {
+        const Box el = args.data[i];
+        doDebug(
+            logDebug(" v Pair");
+            Print(args.data[0], stderr);
+            Print(args.data[i], stderr);
+            logDebug(" ^ Compare");
+        );
+        sig_check(el);
+        eq &= (tag == getTag(&el));
+        logDebug("TagCompare: %s", eq ? " == " : "<>");
+        if (tag == TAG_INT) {  // Can be optimized? is going to be the same
+                               // one for all iterations, maybe can invert
+                               // for and if
+            // if (value != getValue(&el)) eq = 0;
+            eq &= (value == getValue(&el));
+        } else if (tag == TAG_CONS) {
+            // TODO: implement
+            todo("Impelement consEq");
+            eq &= consEq((BoxRef) NULL, (BoxRef) NULL);
+        } else if (tag == TAG_STRING) {
+            // TODO: implement
+            todo("Impelement strEq");
+            eq &= strEq((BoxRef) NULL, (BoxRef) NULL);
+        }
+    }
+    if(!eq) return nil;
+    return box;
+}
+
+Box primitivePrintln(BoxArgs args) {
+    for(int i = 0; i < args.size; i++) {
+        const Box box = args.data[i];
+        sig_check(box);
+        innerPrint(box, READABLE, stdout);
+    }
+    fprintf(stdout, "\n");
     return nil;
+}
+
+Box primitiveExit(BoxArgs args) {
+    int v = getValue(args.data);
+    destroyMemory();
+    exit(v);
 }

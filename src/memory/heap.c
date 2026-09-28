@@ -32,6 +32,8 @@ Heap heap = (Heap) {
     .requested = 0,
 };
 
+// TODO: Eventually, this will have to become one with the bindStack
+//       I cannot go around with 3 different stacks, each with its own implementation
 typedef struct {
     BoxRef* data;
     unsigned int size;
@@ -144,8 +146,7 @@ BoxRef GCnewMem(unsigned int size) {
     logAlloc("Requesting: %dB", size);
     // If you are requesting no size then NULL is a suitable address
     if (!size) return NULL;
-    if (heap.head + size > heap.size)
-        fail(SIGNAL_HEAP_FULL);
+    if (unlikely(heap.head + size > heap.size)) fail(SIGNAL_HEAP_FULL);
 
     // Note: when requesting a block of memory provide at least enough memory
     // to fit a Box
@@ -231,8 +232,8 @@ void gc() {
     } while(frameOuter(&frame));
 
     // Move all heap accessible from registered pointers
-    for(unsigned int i = 0; i < registry.head; i++) {
-
+    for(unsigned int i = 0; i < registry.head; i++)
+    {
         // Ensure that the box is moved (will only move if does not contain an
         // immediate, otherwise return without doing anything, if the value is
         // moved already returns without doing anything)
@@ -241,6 +242,12 @@ void gc() {
         // only elements that need to be moved, ignoring the others and updating
         // references when needed
         moveBox(registry.data[i]);
+    }
+    // Move all heap accessible from binding stack
+    // TODO: merge registry and stack into a single one
+    for(unsigned int i = 0; i < bindStack.head; i++)
+    {
+        moveBox(&bindStack.data[i]);
     }
 
     // After the clean reset the amount of bytes used
@@ -390,6 +397,7 @@ unsigned int createPointerRegistry(unsigned int size) {
     destroyPointerRegistry();
 
     registry.data = (BoxRef*) halloc(size * sizeof(BoxRef));
+    if(!registry.data) return 0;
     registry.size = size;
     registry.head = 0;
     return 1;
@@ -406,13 +414,9 @@ void pointerRegistryPop() {
         registry.head --;
 }
 
-void pointerRegistryReset() {
-    registry.head = 0;
-}
-
 // Maybe using reset at every REPL cycle is too much, check if registry is
 // leaking pointers
-unsigned int pointerRegistryLeaking() {
+int pointerRegistryLeaking() {
     return registry.head;
 }
 

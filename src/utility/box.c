@@ -22,7 +22,7 @@ char* strTag(Tag tag) {
     return printableTag[tag];
 }
 
-Box getCar(BoxRef boxRef) {
+Box getCar(const Box* const boxRef) {
     const Tag tag = getTag(boxRef);
     // Propagate signal
     if (tag == TAG_SIGNAL)
@@ -32,7 +32,7 @@ Box getCar(BoxRef boxRef) {
     return ((Cons*)getValue(boxRef))->car;
 }
 
-Box getCdr(BoxRef boxRef) {
+Box getCdr(const Box* const boxRef) {
     const Tag tag = getTag(boxRef);
     if (tag == TAG_SIGNAL)
         return *boxRef;
@@ -45,9 +45,9 @@ void setCar(BoxRef boxRef, Box value) {
     if (unlikely(getTag(boxRef) != TAG_CONS)) {
         logError("Cannot set car for non-cos boxes");
         fprintf(stderr, "Assigning value: ");
-        Print(value);
+        Print(value, stderr);
         fprintf(stderr, "To: ");
-        Print(*boxRef);
+        Print(*boxRef, stderr);
         fail(SIGNAL_UNKNOWN_FAILURE);
     }
     ((Cons*)getValue(boxRef))->car = value;
@@ -57,9 +57,9 @@ void setCdr(BoxRef boxRef, Box value) {
     if (unlikely(getTag(boxRef) != TAG_CONS)) {
         logError("Cannot set cdr for non-cos boxes");
         fprintf(stderr, "Assigning value: ");
-        Print(value);
+        Print(value, stderr);
         fprintf(stderr, "To: ");
-        Print(*boxRef);
+        Print(*boxRef, stderr);
         fail(SIGNAL_UNKNOWN_FAILURE);
     }
     ((Cons*)getValue(boxRef))->cdr = value;

@@ -99,17 +99,11 @@ void pointerRegistryPush(BoxRef boxRef);
 void pointerRegistryPop();
 
 /**
- * @brief Reset pointer registry
+ * @brief fails if pointerRegitry is leaking
  *
- * Empty pointer registry, this is done in specific points to prevent eventual
- * misses
+ * @return 0 if not leaking, != otherwise
  */
-void pointerRegistryReset();
-
-/**
- * @brief returns a positive value if pointerRegitry is leaking
- */
-unsigned int pointerRegistryLeaking();
+int pointerRegistryLeaking();
 
 /**
  * @brief Returns the size of RawString map

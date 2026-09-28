@@ -5,75 +5,48 @@
 #include <memory/heap.h>
 
 #include "functions.h"
+#include "system/printer.h"
 #include "eval.h"
 
 #include <stdio.h>
 #include <string.h>
 
-Box GCevalAst(Box box);
-Box evalForm(Box box);
+#define show(box, ...) doDebug( \
+    logDebug(" v " __VA_ARGS__); \
+    Print(box, stderr); \
+)
 
 /**
  * @brief Evaluate list element-by-element
  *
  * @param box Box referencing argument
- * @return
+ * @return Address of binding
  */
-Box GCevalAst(Box box) {
+BoxRef GCevalBinding(Box box, unsigned int* bindingSize) {
 
-    Box headBox = boxNil(),
-        tailBox = boxNil();
-
-    switch (getTag(&box)) {
-    case TAG_CONS:
-
-        pointerRegistryPush(&headBox);
-        pointerRegistryPush(&tailBox);
-        pointerRegistryPush(&box);
-
-        headBox = setBox((Value) GCnewCons(), TAG_CONS);
-        tailBox = headBox;
-
-        Box elementBox = getCar(&box);
-        Box tempBox = GCEval(elementBox);
-        // Check for signals
-        trace(&tempBox);
-        sig_check(tempBox,
-            headBox = tempBox;
-            goto evalAstReturn;
+    // evalAst is called exclusively with cons
+    // TODO: consider implementing stack frames using Box(TAG_INT, base_pointer)
+    BoxRef bindings = bindStackReserveN(0);     /// <- hacky, should actually use a framed stack
+    BoxRef binding = bindings;
+    pointerRegistryPush(&box);
+    for(*bindingSize = 0, binding = bindings
+        ; getTag(binding) == TAG_SIGNAL         // Might not be standard, but is an easier check
+          || getTag(&box) == TAG_CONS           // This allows me to terminate lists with anything:
+        ; box = getCdr(&box))                   // (+ a b . c) == (+ a b)
+    {
+        binding = bindStackReserve();           ///
+        *bindingSize = (*bindingSize+1);        /// <- Should use framed stack
+        *binding = GCEval(getCar(&box));
+        doDebug(
+            Print(*binding, stderr);
+            logDebug(" ^ Value");
         );
-        setCar(&tailBox, tempBox);
-        box = getCdr(&box);
-
-        while (getTag(&box) == TAG_CONS) {
-            setCdr(&tailBox, setBox((Value) GCnewCons(), TAG_CONS));
-            tailBox = getCdr(&tailBox);
-            elementBox = getCar(&box);
-            tempBox = GCEval(elementBox);
-            // Check for signals
-            trace(&tempBox);
-            sig_check(tempBox,
-                headBox = tempBox;
-                goto evalAstReturn;
-            );
-            setCar(&tailBox, tempBox);
-            box = getCdr(&box);
-        }
-
-    evalAstReturn:
-        pointerRegistryPop();
-        pointerRegistryPop();
-        pointerRegistryPop();
-
-        return headBox;
-
-    case TAG_SYMBOL:
-        box = getSymbol(&box);
-        trace(&box);
-        return box;
-    default:
-        return box;
+        trace(binding);
     }
+    if (getTag(binding) == TAG_SIGNAL)          // Early exit, return the value instead
+        bindings = binding;
+    pointerRegistryPop();
+    return bindings;
 }
 
 // FIXME: highly dependent on Eval, should embed it
@@ -86,18 +59,31 @@ Box GCevalAst(Box box) {
  * @return result of applying value
  */
 static inline Box GCapplyList(Box box, FormType *formType, int *hasFrame) {
-    box = GCevalAst(box);
-    trace(&box);
     sig_check(box);
 
-    // Default is leaf (most comon)
+    // TODO: remove
+    if (unlikely(getTag(&box) != TAG_CONS)) {
+        logError("Expecting Cons, got %s", strTag(getTag(&box)));
+    }
+    assert(getTag(&box) == TAG_CONS);
+
+    unsigned int bindingSize;
+    BoxRef bindings = GCevalBinding(box, &bindingSize);
+    sig_check(bindings[0], bindStackPopN(bindingSize); );
+    doDebug(
+        fprintf(stderr, "[%2d]: ", bindingSize);
+        for (int i = 0; i < bindingSize; i++) {
+            innerPrint(bindings[i], NON_READABLE, stderr);
+            fprintf(stderr, " ");
+        }
+        fprintf(stderr, "\n");
+        logDebug(" ^ Evaluated");
+    );
+
+    // Default is leaf (catches primitives and atomics)
     *formType = FORM_LEAF;
 
-    // For convenience, keep function and argument box separated
-    Box functionBox = getCar(&box),
-        argumentBox = getCdr(&box);
-
-    switch(getTag(&functionBox)) {
+    switch(getTag(bindings)) {
     case TAG_CLOSURE:
         // Make a new frame
         if(*hasFrame == 0) {
@@ -105,75 +91,83 @@ static inline Box GCapplyList(Box box, FormType *formType, int *hasFrame) {
             framePush();
         }
 
-        // Create binding in the new frame
-        for(Box bindingBox = getCar(&functionBox)
-                ; getTag(&bindingBox) == TAG_CONS
-                ; argumentBox = getCdr(&argumentBox), bindingBox = getCdr(&bindingBox)) {
+        int i = 0;
+        Box symbols;
+        if (bindingSize > 0) {  // TODO: can I avoid check?
+            for(symbols = getCar(&bindings[0]), i = 1
+                ; getTag(&symbols) == TAG_CONS // && i < bindingSize
+                ; symbols = getCdr(&symbols), ++i) {
 
-            // Just used to sig_check and trace, can copy straight into defineSymbol otherwise
-            Box bindValueBox  = getCar(&argumentBox);
+                const Box symbol = getCar(&symbols);
+                assert(getTag(&symbol) == TAG_SYMBOL);
+                assert(getTag(&bindings[i]) != TAG_SIGNAL);
+                if (i < bindingSize) defineSymbol(symbol, bindings[i]);
+                else defineSymbol(symbol, nil);
 
-            trace(&bindValueBox);
-            sig_check(bindValueBox);
-
-            defineSymbol(getCar(&bindingBox), bindValueBox);
-        }
-        // NOTE: stops at shorter list
-        // ((lambda (x y) (+ x y)) 1) ; x <- 1 , y <- ???
-        // ((lambda (x) (+ x 1)) 1 2) ; x <- 1
-        // TODO: what happens with SIGNALS?
-        // ((lambda (x) (+ x 1)) 1 SIGNAL) ; ???
-
-        // functionBox: ((x y) (+ x 1) (+ y 2))
-        Box statementBox = getCdr(&functionBox),
-            // statementBox: ((+ x 1) (+ y 2))
-            resultBox = nil;
-
-        // Do not deref
-        if(getTag(&statementBox) == TAG_NIL){
-            return nil;
-        }
-
-        // early check, prevents instant push-pop when body has a single statement
-        Box nextBox = getCdr(&statementBox);
-        if (getTag(&nextBox) == TAG_CONS) {
-            // Iterate all but the last element
-            for(pointerRegistryPush(&statementBox)
-                    ; getTag(&nextBox) == TAG_CONS
-                    ; statementBox = getCdr(&statementBox), nextBox = getCdr(&statementBox)) {
-
-                resultBox = GCEval(getCar(&statementBox));
-
-                // Stop at errors
-                trace(&resultBox);
-                sig_check(resultBox,
-                    pointerRegistryPop();
-                    return resultBox;
+                doDebug(
+                    Box _box = symbol;
+                    Print(getSymbol(&_box), stderr);
+                    logDebug(" ^ Bound to \"%s\"", getRaw(symbol));
                 );
-
             }
-            pointerRegistryPop();
         }
+        // Reference first statement
+        Box statementBox = getCdr(&bindings[0]);
+        // statementBox = getCdr(&statementBox);
+        doDebug(
+            Box s; int i;
+            for(s = statementBox, i=0; getTag(&s) == TAG_CONS; s = getCdr(&s), i++) {
+                fprintf(stderr, "%2d: ", i);
+                Print(getCar(&statementBox), stderr);
+            }
+            logDebug(" ^ Lambda statements");
+        );
+        // Can pop binding stack early
+        bindStackPopN(bindingSize);
 
-        // Resulting form is composite -> yet to be evaluated
+        // If it's nil will skip for loop
+        if (getTag(&statementBox) == TAG_NIL) { break; }
+
         *formType = FORM_COMPOSITE;
+
+        Box nextBox = getCdr(&statementBox);
+        // Statement cons is either cons or nil
+        // Always doe push-pop, even on nil
+        for(pointerRegistryPush(&statementBox)
+                ; getTag(&nextBox) == TAG_CONS
+                ; statementBox = getCdr(&statementBox), nextBox = getCdr(&statementBox)) {
+
+            box = GCEval(getCar(&statementBox));
+
+            // Stop at errors
+            trace(&box);
+            sig_check(box,
+                pointerRegistryPop();
+                return box;
+            );
+            // Resulting form is composite -> yet to be evaluated
+        }
+        pointerRegistryPop();
         // Return car of statements (which is the last one)
-        return getCar(&statementBox);
-        // Pop pointer registry and destroy frame
+        box = getCar(&statementBox);
+        break;
     case TAG_PRIMITIVE:
         // If function is a primitive, apply it to arguments and return
-        functionBox = getPrimitive(functionBox)(argumentBox);
+        box = getPrimitive(bindings[0])((BoxArgs){
+                .data = &bindings[1],.size = bindingSize-1});
+        bindStackPopN(bindingSize);
         // Primitives are leaf
-        trace(&functionBox);
-        return functionBox;
+        break;
     default:
         // If function is neither primitive nor cons, it's an error
-        logError("Cannot apply %s", strTag(getTag(&functionBox)));
-        functionBox = boxSignal(SIGNAL_NOT_A_FUNCTION);
-        // Signals are leaf
-        trace(&functionBox);
-        return functionBox;
+        // Raise a signal
+        logError("Cannot apply %s", strTag(getTag(bindings)));
+         bindStackPopN(bindingSize);
+        box = boxSignal(SIGNAL_NOT_A_FUNCTION);
+        break;
     }
+    trace(bindings);
+    return box;
 }
 
 // Evaluates an expression
@@ -188,9 +182,12 @@ Box GCEval(Box box) {
     FormType leafStatement;
     for (;;) {
 
+        show(box, "Eval");
+
         Tag tag = getTag(&box);
 
         if (tag == TAG_SYMBOL) {
+            logDebug(" ^ Symbol");
             box = getSymbol(&box);
         } else if (tag == TAG_CONS) {
             // Separate function and arguments for convenience
@@ -198,15 +195,21 @@ Box GCEval(Box box) {
             argumentBox = getCdr(&box);
 
             // Special form to call (may call GC)
-            Function GCspecialForm;
+            SpecialForm GCspecialForm;
             if (getTag(&functionBox) == TAG_SYMBOL
                     && (GCspecialForm = matchSpecialForm(functionBox, &leafStatement))) {
+                logDebug(" ^ Special form - (%s ...)", getRaw(functionBox));
                 // First element is a symbol & a special form
                 // Apply special form
                 box = GCspecialForm(argumentBox);
             } else {
+                logDebug(" ^ Function call - (%s ...)", getRaw(functionBox));
                 // Not a special form, apply it, can be a nonsymbol?
                 box = GCapplyList(box, &leafStatement, &hasFrame);
+                doDebug(
+                    Print(box, stderr);
+                    logDebug(" ^ Result ");
+                );
                 // It's a cons but not a special form: must evaluate all elements
                 // of the list (returns a new list of evaluated elements)
                 // Uses previous env

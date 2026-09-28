@@ -54,9 +54,15 @@ extern const Box nil;
 // check to make sure that the reference lays withing machine's heap
 typedef Box *BoxRef;
 
-// Define type Function as any function pointer that accepts a Box as argument
+typedef struct {
+    Box* data;
+    unsigned int size;
+} BoxArgs;
+
+// Define type Function as any function pointer that accepts BoxArgs (BoxRef + Size) as argument
 // and returns a box
-typedef Box (*Function) (Box);
+typedef Box (*Function) (BoxArgs args);
+typedef Box (*SpecialForm) (Box box);
 
 // A cons contains two boxes: a car and a cdr
 typedef struct {
@@ -70,7 +76,7 @@ typedef struct {
  * @param box 
  * @return 
  */
-static inline Value getValue(BoxRef boxRef) {
+static inline const Value getValue(const Box* const boxRef) {
     return boxRef->value;
 }
 
@@ -80,7 +86,7 @@ static inline Value getValue(BoxRef boxRef) {
  * @param box 
  * @return 
  */
-static inline Tag getTag(BoxRef boxRef) {
+static inline const Tag getTag(const Box* const boxRef) {
     return boxRef->tag;
 }
 
@@ -143,7 +149,7 @@ char* strTag(Tag tag);
  * @param boxRef 
  * @return 
  */
-Box getCar(BoxRef boxRef);
+Box getCar(const Box* const boxRef);
 
 /**
  * @brief Returns the cdr of a box referencing a cons
@@ -151,7 +157,7 @@ Box getCar(BoxRef boxRef);
  * @param boxRef 
  * @return 
  */
-Box getCdr(BoxRef boxRef);
+Box getCdr(const Box* const boxRef);
 
 /**
  * @brief Sets the car of a box referencing a cons

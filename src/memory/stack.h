@@ -62,3 +62,35 @@ Box getSymbol(BoxRef nameRef);
  * @brief Initialize the environment with the primitives
  */
 void GCinitializeEnv();
+
+// TODO: Merge with pointerRegistry
+typedef struct {
+    Box* data;
+    unsigned int head,  //  <- Ultimately don't like this naming convention, but
+                 size;  //  <- I will keep it consistent across stacks
+} BindStack;
+extern BindStack bindStack;
+
+// TODO: documentation
+
+void destroyBindStack();
+
+unsigned int createBindStack(unsigned int size);
+
+// NOTE: there is no need to reference frames, user has to count push/pop
+// TODO: how to integrate con pointerregistry? maybe both Push and Reserve?
+BoxRef bindStackReserveN(unsigned int n);
+
+#define bindStackReserve()\
+    /* Reserve a single element */\
+    bindStackReserveN(1)
+
+// NOTE: differently from pointerRegistry stack I need either a peek function or
+// a value-returing pop function
+Box bindStackPopN(unsigned int n);
+
+#define bindStacPop() \
+    /* Pops a single element */\
+    bindStackPopN(1)
+
+

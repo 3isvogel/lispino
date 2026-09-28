@@ -23,4 +23,4 @@ Function getPrimitive(Box box);
  * @param name 
  * @return Function pointer to the special form, NULL if no match was found
  */
-Function matchSpecialForm(Box box, FormType* isLeafStatement);
+SpecialForm matchSpecialForm(Box box, FormType* isLeafStatement);

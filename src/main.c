@@ -18,23 +18,27 @@ void printsize() {
         stackSize,
         heapSize,
         pointerRegistrySize,
+        bindStackSize,
         rawMapSize,
         totalSize;
     tokenBufferSize = (TOKEN_BUFFER_MAX_LEN+1) * sizeof(char);
     stackSize = (STACK_MAX_LEN) * sizeof(Cons);
     heapSize = (HEAP_MAX_LEN) * sizeof(Box) * 2;
     rawMapSize = getRawStringMapSize() * sizeof(BoxRef);
+    bindStackSize = (BIND_STACK_MAX_LEN) * sizeof(Box);
     pointerRegistrySize = (POINTER_REGISTRY_MAX_LEN) * sizeof(Box*);
 
     // Using two heaps: copy GC
-    totalSize = tokenBufferSize + stackSize + heapSize + pointerRegistrySize + rawMapSize;
+    totalSize = tokenBufferSize + stackSize + heapSize + pointerRegistrySize + rawMapSize + pointerRegistrySize;
 
     logInfo("%18s %10s %10s", "Memory", "size (B)", "size (KB)");
     logInfo("%18s %10u %10u", "Token buffer:",      tokenBufferSize, tokenBufferSize/K);
     logInfo("%18s %10u %10u", "Symbols stack:",     stackSize, stackSize/K);
     logInfo("%18s %10u %10u", "Heaps (x2):",        heapSize, (heapSize/K));
     logInfo("%18s %10u %10u", "Pointer registry:",  pointerRegistrySize, pointerRegistrySize/K);
+    logInfo("%18s %10u %10u", "Bind Stack:",        bindStackSize, bindStackSize/K);
     logInfo("%18s %10u %10u", "Raw String Map:",    rawMapSize, rawMapSize/K);
+    logInfo("");
     logInfo("%18s %10u %10u", "Total:",             totalSize, totalSize/K);
     logInfo("");
     logInfo("%18s %10u", "Box:", sizeof(Box));
@@ -44,27 +48,26 @@ void printsize() {
 int main(int argc, char** argv) {
 
     logSetLevel(LOG_LEVEL_DEBUG);
+    logSetLevel(LOG_LEVEL_INFO);
 
     if (createMemory() == 0) {
         fail(SIGNAL_MEM_SETUP_FAIL);
     }
 
     printsize();
-    // if(!env_init()) fail(ENV_INIT_FAIL);
     GCinitializeEnv();
 
     while(1) {
-        printf("%d > ", heapAvailableSize());
+        fprintf(stderr, "%d > ", heapAvailableSize());
         // flush for when using pipes 
         fflush(stdout);
         // Read 1 vaild s-expr
         Box ret = Read();
         // TODO: remove temporary leaky check: at top level, pointer registry should be empty
-        if (pointerRegistryLeaking()) fail(SIGNAL_POINTER_REGISTRY_LEAKING);
+        assert(pointerRegistryLeaking() == 0);
         ret = GCEval(ret);
-        // TODO: remove temporary leaky check
         // TODO: remove temporary leaky check: at top level, pointer registry should be empty
-        if (pointerRegistryLeaking()) fail(SIGNAL_POINTER_REGISTRY_LEAKING);
-        Print(ret);
+        assert(pointerRegistryLeaking() == 0);
+        Print(ret, stderr);
     }
 }

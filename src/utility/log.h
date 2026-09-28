@@ -66,7 +66,11 @@ void logPrintVa(LogLevel logLevel, const char *fileName, int lineNumber,
 #define logDebug( ...) logPrintF(LOG_LEVEL_DEBUG, __FILE__, __LINE__,  __VA_ARGS__)
 #define logInfo( ...) logPrintF(LOG_LEVEL_INFO, __FILE__, __LINE__,  __VA_ARGS__)
 #define logWarning( ...) logPrintF(LOG_LEVEL_WARN, __FILE__, __LINE__,  __VA_ARGS__)
-#define logError( ...) logPrintF(LOG_LEVEL_ERROR, __FILE__, __LINE__,  __VA_ARGS__)
+
+#define doAlloc( ...) do { if (LOG_LEVEL_ALLOC >= logGetLevel()) { __VA_ARGS__ }} while(0)
+#define doDebug( ...) do { if (LOG_LEVEL_DEBUG >= logGetLevel()) {  __VA_ARGS__ }} while(0)
+#define doInfo( ...) do { if (LOG_LEVEL_INFO >= logGetLevel()) { __VA_ARGS__ }} while(0)
+#define doWarning( ...) do { if (LOG_LEVEL_WARNING >= logGetLevel()) { __VA_ARGS__ }} while(0)
 
 #else//BUILD_RELEASE
 
@@ -74,14 +78,15 @@ void logPrintVa(LogLevel logLevel, const char *fileName, int lineNumber,
 #define logDebug( ...)
 #define logInfo( ...)
 #define logWarning( ...)
-#define logError( ...)
 
-#ifdef  logError
-#undef  logError
-#endif
-#define logError( ...) logPrint(LOG_LEVEL_ERROR, __FILE__, __LINE__,  __VA_ARGS__);
+#define doAlloc( ...)
+#define doDebug( ...)
+#define doInfo( ...)
+#define doWarning( ...)
 
 #endif // BUILD_RELEASE
+
+#define logError( ...) logPrintF(LOG_LEVEL_ERROR, __FILE__, __LINE__,  __VA_ARGS__);
 
 #ifdef __cplusplus
 }
