@@ -143,8 +143,9 @@ void GCreadForm(BoxRef boxRef) {
         // Keep separated implementation of special symbols transforms
         GCspecialTransform(boxRef, "quote");
         break;
-    case TTYPE_INT:
+    case TTYPE_EOF: break;
     default:
+    case TTYPE_INT:
         setValue(boxRef, token.value);
         setTag(boxRef, ttypeToTag(token.type));
     }
@@ -245,7 +246,7 @@ void GCreadList(BoxRef boxRef) {
     pointerRegistryPop();
 }
 
-Box Read() {
+Box Read(int *eof) {
 
     Box box = boxNil();
     next();
@@ -253,6 +254,10 @@ Box Read() {
     pointerRegistryPush(&box);
 
     GCreadForm(&box);
+    if (token.type == TTYPE_EOF) {
+        logWarning("Reached EOF");
+        *eof = 1;
+    }
 
     pointerRegistryPop();
 

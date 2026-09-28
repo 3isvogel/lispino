@@ -10,6 +10,6 @@ extern unsigned int token_buffer_len;
 char* createParser(unsigned int size);
 void destroyParser();
 
-Box Read();
+Box Read(int *eof);
 
 #endif//READER_H

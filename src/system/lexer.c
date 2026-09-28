@@ -79,11 +79,10 @@ void next() {
     clearToken();
 
     do {
-        
+
         // End of file
         if (cc == EOF) {
             token.type = TTYPE_EOF;
-            logInfo("EOF reached");
             appendChar('\0');
             goto lexerReturn;
         // ( Left parenthesis
@@ -160,7 +159,7 @@ actuallyASymbol:
         } else if (cc >= '!' && cc <= '\'') {
             todo("Implement special characters");
         }
-        
+
         // If it doesn't match anything just consume it
         cc = getchar();
 

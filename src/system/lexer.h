@@ -16,7 +16,7 @@ X(INT)                                  \
 X(LABEL)                                \
 X(DOT)                                  \
 X(NIL)                                  \
-X(QUOTE)
+X(QUOTE)                                \
 
 #define X(x) TTYPE_##x,
 typedef enum {

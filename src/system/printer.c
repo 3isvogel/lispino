@@ -81,5 +81,5 @@ void Print(Box box, FILE *file) {
     }
     innerPrint(box, 0, file);
     // Newline (and flush)
-    printf("\n");
+    fprintf(file, "\n");
 }

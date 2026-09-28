@@ -27,7 +27,7 @@ do {\
 #define _traceBox(func, file, line ,boxRef)\
     do {\
         if(unlikely(getTag(boxRef) == TAG_SIGNAL)) {\
-            printf(";   at %s ("file":" STR(line) "):\n", func);\
+            fprintf(stderr, ";   at %s ("file":" STR(line) "):\n", func);\
             /* Print(boxRef);*/\
         }\
     } while (0)

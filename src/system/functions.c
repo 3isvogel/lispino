@@ -333,11 +333,11 @@ Box primitiveSym(BoxArgs args) {
 }
 
 Box primitiveForm(BoxArgs args) {
-    printf("PrimForm");
+    fprintf(stderr, "PrimForm");
     for (unsigned int i = 1; i < SPECIAL_FORMS_SIZE; i++) {
-        printf("%s ", specialFormsMap[i].name);
+        fprintf(stderr, "%s ", specialFormsMap[i].name);
     }
-    printf("\n");
+    fprintf(stderr, "\n");
     return nil;
 }
 
@@ -350,6 +350,7 @@ Box primitiveIntAdd(BoxArgs args) {
     if (likely(i == args.size)) return setBox(acc, TAG_INT);
     const Box box = args.data[i];
     if (getTag(&box) == TAG_SIGNAL) return box;
+    Print(box, stderr);
     logError("Cannot add %s", strTag(getTag(&box)));
     return boxSignal(SIGNAL_WRONG_TYPE);
 }
@@ -419,7 +420,9 @@ Box primitivePrintln(BoxArgs args) {
 }
 
 Box primitiveExit(BoxArgs args) {
-    int v = getValue(args.data);
+    int v;
+    if (args.size == 0) v = 0;
+    else v = getValue(args.data);
     destroyMemory();
     exit(v);
 }

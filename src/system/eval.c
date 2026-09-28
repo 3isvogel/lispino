@@ -30,8 +30,8 @@ BoxRef GCevalBinding(Box box, unsigned int* bindingSize) {
     BoxRef binding = bindings;
     pointerRegistryPush(&box);
     for(*bindingSize = 0, binding = bindings
-        ; getTag(binding) == TAG_SIGNAL         // Might not be standard, but is an easier check
-          || getTag(&box) == TAG_CONS           // This allows me to terminate lists with anything:
+        ; getTag(binding) != TAG_SIGNAL         // Might not be standard, but is an easier check
+          && getTag(&box) == TAG_CONS           // This allows me to terminate lists with anything:
         ; box = getCdr(&box))                   // (+ a b . c) == (+ a b)
     {
         binding = bindStackReserve();           ///

@@ -57,12 +57,14 @@ int main(int argc, char** argv) {
     printsize();
     GCinitializeEnv();
 
-    while(1) {
+    int eof = 0;
+
+    while(!eof) {
         fprintf(stderr, "%d > ", heapAvailableSize());
         // flush for when using pipes 
         fflush(stdout);
         // Read 1 vaild s-expr
-        Box ret = Read();
+        Box ret = Read(&eof);
         // TODO: remove temporary leaky check: at top level, pointer registry should be empty
         assert(pointerRegistryLeaking() == 0);
         ret = GCEval(ret);
