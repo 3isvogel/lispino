@@ -157,6 +157,7 @@ actuallyASymbol:
                 token.type = TTYPE_SYMBOL;
             goto lexerReturn;
         } else if (cc >= '!' && cc <= '\'') {
+            logError("Got char '%c'", cc);
             todo("Implement special characters");
         }
 

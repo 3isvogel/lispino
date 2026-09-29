@@ -6,10 +6,14 @@
 #include <utility/log.h>
 
 #include <memory/heap.h>
+#include <string.h>
 
 #include <stdio.h>
 
+#define ESCAPE_BUFFER_SIZE 128
+
 void innerPrint(Box box, Readable readable, FILE* file) {
+    static char escapeBuffer[ESCAPE_BUFFER_SIZE];
     switch(getTag(&box)) {
     case TAG_CONS:
         fprintf(file, "(");
@@ -32,8 +36,21 @@ void innerPrint(Box box, Readable readable, FILE* file) {
         fprintf(file, ")");
         break;
     case TAG_STRING:
-        if (readable)   fprintf(file, "%s", getRaw(box));
-        else            fprintf(file, "\"%s\"", getRaw(box));
+
+        if (!readable)   fprintf(file, "\"%s\"", getRaw(box));
+        else {
+            char* cc = 0; unsigned int i = 0;
+            for(cc = getRaw(box); *cc && i<ESCAPE_BUFFER_SIZE;++cc,++i) {
+                if(unlikely(*cc == '\\')) { ++cc;
+                    static const char *escapeChars = "abtnvfr";
+                    const char *escapedLetter = strchr(escapeChars, *cc) + 0x7;
+                    escapeBuffer[i] = (escapedLetter ? escapedLetter - escapeChars : *cc);
+                } else { escapeBuffer[i] = *cc; }
+            }
+            if(i == ESCAPE_BUFFER_SIZE) fail(SIGNAL_TOKEN_TOO_LONG);
+            escapeBuffer[i] = '\0';
+            fprintf(file, "%s", escapeBuffer);
+        }
         break;
     case TAG_LABEL:
         fprintf(file, ":%s", getRaw(box));

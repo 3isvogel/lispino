@@ -42,13 +42,14 @@ X(define,    , Define, LEAF)
 X(car,      Car)            \
 X(cdr,      Cdr)            \
 X(cons,     Cons)           \
-/*X(cons,  Cons)*/          \
+X(list,     List)           \
 X(?,        Type)           \
 X(sym,      Sym)            \
 X(form,     Form)           \
 X(+,        IntAdd)         \
 X(eq,       Eq)             \
 X(println,  Println)        \
+X(loglevel, LogLevel)       \
 X(exit,     Exit)
 
 
@@ -274,23 +275,33 @@ Box specialFormLambda(Box box) {
 Box specialFormDefine(Box box) {
     Box symbolBox = getCar(&box);
 
-    // TODO: support syntax
-    // (define (add a b) (+ a b)) -> (define add (lambda (a b) (+ a b)))
-    if (getTag(&symbolBox) != TAG_SYMBOL) {
-        return boxSignal(SIGNAL_WRONG_ARGUMENTS);
-    }
-    box = getCdr(&box);
-    box = getCar(&box);
-    pointerRegistryPush(&symbolBox);
-    box = GCEval(box);
-    pointerRegistryPop();
+    if (getTag(&symbolBox) == TAG_SYMBOL) {
+        box = getCdr(&box);
+        box = getCar(&box);
+        pointerRegistryPush(&symbolBox);
+        box = GCEval(box);
+        pointerRegistryPop();
 
-    sig_check(box);
+        sig_check(box);
 
-    doDebug(
-        Print(box, stderr);
-        logDebug(" ^ Definition of \"%s\"", getRaw(symbolBox));
-    );
+        doDebug(
+            Print(box, stderr);
+            logDebug(" ^ Definition of \"%s\"", getRaw(symbolBox));
+        );
+    } else if (getTag(&symbolBox) == TAG_CONS) {
+        // TODO: implement as macro
+        pointerRegistryPush(&box);
+        Cons* cons = GCnewCons();
+        pointerRegistryPop();
+            symbolBox = getCar(&box);
+        Box exprBox = getCdr(&box);
+        Box bindingBox = getCdr(&symbolBox);
+            symbolBox = getCar(&symbolBox);
+        logDebug(" ^ symbol");
+        cons->car = bindingBox;
+        cons->cdr = exprBox;
+        box = setBox((Value)cons, TAG_CLOSURE);
+    } else { return boxSignal(SIGNAL_WRONG_ARGUMENTS); }
 
     return defineSymbol(symbolBox, box);
 }
@@ -329,6 +340,27 @@ Box primitiveCons(BoxArgs args) {
     cons->car = args.data[0];
     if(likely(args.size > 1)) cons->cdr = args.data[1];
     return setBox((Value)cons, TAG_CONS);
+}
+
+Box primitiveList(BoxArgs args) {
+    if (args.size == 0) {
+        return boxNil();
+    }
+    Cons* cons = GCnewCons();
+    cons->car = args.data[0];
+    Box box = setBox((Value)cons, TAG_CONS),
+        iter = box;
+    pointerRegistryPush(&box);
+    pointerRegistryPush(&iter);
+    for(int i = 1; i<args.size; i++) {
+        cons = GCnewCons();
+        setCdr(&iter, setBox((Value) cons, TAG_CONS));
+        iter = getCdr(&iter);
+        setCar(&iter, args.data[i]);
+    }
+    pointerRegistryPop();
+    pointerRegistryPop();
+    return box;
 }
 
 Box primitiveType(BoxArgs args) {
@@ -429,6 +461,12 @@ Box primitivePrintln(BoxArgs args) {
     }
     fprintf(stdout, "\n");
     return nil;
+}
+
+Box primitiveLogLevel(BoxArgs args) {
+    if (unlikely(getTag(args.data) != TAG_INT)) return boxSignal(SIGNAL_WRONG_TYPE);
+    logSetLevel(getValue(args.data));
+    return boxNil();
 }
 
 Box primitiveExit(BoxArgs args) {
