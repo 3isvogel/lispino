@@ -15,11 +15,12 @@ X(SYMBOL) \
 X(CONS) \
 X(PRIMITIVE) \
 X(CLOSURE) \
+X(MACRO)    \
 X(LABEL) \
 X(MOVED) \
 X(RAW) \
 X(STRING) \
-X(SIGNAL)
+X(SIGNAL) \
 
 #define X(x) TAG_##x,
 typedef enum

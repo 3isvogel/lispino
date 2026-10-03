@@ -16,7 +16,7 @@ const char *log_level_color[] = {
 };
 #undef X
 
-void logSetLevel(LogLevel logLevel) { treshold_log_level = logLevel; }
+void logSetLevel(LogLevel logLevel) { treshold_log_level = MIN(logLevel,LOG_LEVEL_ERROR); }
 
 LogLevel logGetLevel() { return treshold_log_level; }
 
@@ -31,7 +31,7 @@ void logPrintF(LogLevel logLevel, const char *fileName, int lineNumber,
 void logPrintVa(LogLevel logLevel, const char *fileName, int lineNumber,
               const char *format, va_list arg) {
 
-    if (logLevel >= LOG_LEVEL_MAX) logLevel = LOG_LEVEL_ERROR;
+    logLevel = MIN(logLevel, LOG_LEVEL_ERROR);
 
 #ifndef BUILD_RELEASE       // Not defined functions on release, print in any case
     if (logLevel < treshold_log_level) return;

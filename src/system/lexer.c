@@ -86,6 +86,7 @@ void next() {
             appendChar('\0');
             goto lexerReturn;
         // ( Left parenthesis
+        // TODO: can I collapse them?
         } else if (cc == '(') {
             token.type = TTYPE_LPAR;
             appendChar(cc);
@@ -103,6 +104,16 @@ void next() {
         // ' Single quote
         } else if (cc == '\'') {
             token.type = TTYPE_QUOTE;
+            appendChar(cc);
+            goto lexerConsumeAndReturn;
+        // ` Accent quote
+        } else if (cc == '`') {
+            token.type = TTYPE_QQUOTE;
+            appendChar(cc);
+            goto lexerConsumeAndReturn;
+        // , Comma
+        } else if (cc == ',') {
+            token.type = TTYPE_UNQUOTE;
             appendChar(cc);
             goto lexerConsumeAndReturn;
         // "xxxx" String

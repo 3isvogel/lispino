@@ -32,10 +32,13 @@
 // Define all special forms
 #define SPECIAL_FORMS_LIST      \
 X(quote,     , Quote, LEAF)     \
+/* X(quasiQuote,, QuasiQuote, LEAF)     \
+X(unquote,, Unquote, LEAF) */    \
 X(if,      GC, If, COMPOSITE)   \
 X(do,      GC, Do, COMPOSITE)   \
 X(lambda,    , Lambda, LEAF)    \
-X(define,    , Define, LEAF)
+X(define,    , Define, LEAF)    \
+/*X(defmacro,  , DefMacro, LEAF) */
 
 // Define all primitives
 #define PRIMITIVES_LIST     \
@@ -47,6 +50,9 @@ X(?,        Type)           \
 X(sym,      Sym)            \
 X(form,     Form)           \
 X(+,        IntAdd)         \
+X(-,        IntSub)         \
+X(*,        IntMul)         \
+X(/,        IntDiv)         \
 X(eq,       Eq)             \
 X(println,  Println)        \
 X(loglevel, LogLevel)       \
@@ -181,6 +187,12 @@ Box specialFormQuote(Box box) {
     return getCar(&box);
 }
 
+// Box specialFormQuasiQuote(Box box) {
+// }
+// 
+// Box specialFormUnQuote(Box box) {
+// }
+
 // "if" special form
 Box GCspecialFormIf(Box box) {
 
@@ -288,19 +300,19 @@ Box specialFormDefine(Box box) {
             Print(box, stderr);
             logDebug(" ^ Definition of \"%s\"", getRaw(symbolBox));
         );
-    } else if (getTag(&symbolBox) == TAG_CONS) {
-        // TODO: implement as macro
-        pointerRegistryPush(&box);
-        Cons* cons = GCnewCons();
-        pointerRegistryPop();
-            symbolBox = getCar(&box);
-        Box exprBox = getCdr(&box);
-        Box bindingBox = getCdr(&symbolBox);
-            symbolBox = getCar(&symbolBox);
-        logDebug(" ^ symbol");
-        cons->car = bindingBox;
-        cons->cdr = exprBox;
-        box = setBox((Value)cons, TAG_CLOSURE);
+    // TODO: implement as macro
+    // } else if (getTag(&symbolBox) == TAG_CONS) {
+    //     pointerRegistryPush(&box);
+    //     Cons* cons = GCnewCons();
+    //     pointerRegistryPop();
+    //         symbolBox = getCar(&box);
+    //     Box exprBox = getCdr(&box);
+    //     Box bindingBox = getCdr(&symbolBox);
+    //         symbolBox = getCar(&symbolBox);
+    //     logDebug(" ^ symbol");
+    //     cons->car = bindingBox;
+    //     cons->cdr = exprBox;
+    //     box = setBox((Value)cons, TAG_CLOSURE);
     } else { return boxSignal(SIGNAL_WRONG_ARGUMENTS); }
 
     return defineSymbol(symbolBox, box);
@@ -321,6 +333,9 @@ Box primitiveCar(BoxArgs args) {
     // Argument must be a cons, whose cdr is [anything] and car is another cons
     //                                        ^^^^^^^^
     //                                        Should be a Cons, but do I care?
+    const Tag tag = getTag(args.data);
+    if (tag != TAG_CONS && tag != TAG_CLOSURE)
+        return boxSignal(SIGNAL_WRONG_TYPE);
     return getCar(args.data);
 }
 
@@ -328,6 +343,9 @@ Box primitiveCdr(BoxArgs args) {
     // Argument must be a cons, whose cdr is [anything] and car is another cons
     //                                        ^^^^^^^^
     //                                        Should be a Cons, but do I care?
+    const Tag tag = getTag(args.data);
+    if (tag != TAG_CONS && tag != TAG_CLOSURE)
+        return boxSignal(SIGNAL_WRONG_TYPE);
     return getCdr(args.data);
 }
 
@@ -385,11 +403,23 @@ Box primitiveForm(BoxArgs args) {
     return nil;
 }
 
-Box primitiveIntAdd(BoxArgs args) {
-    Value acc = 0;
+
+Box primitiveIntOp(BoxArgs args, Arithmetic op) {
+    static const int init[4] = {0,0,1,1};
+    if(args.size == 0) return setBox(init[op], TAG_INT);
+    Value acc = init[op];
     unsigned int i = 0;
+    if(args.size > 1) {
+        acc = getValue(args.data);
+        i = 1;
+    }
     for(; i < args.size && getTag(&args.data[i]) == TAG_INT; i++) {
-        acc += getValue(&args.data[i]);
+        switch(op) {
+            case ADD: acc += getValue(&args.data[i]); break;
+            case SUB: acc -= getValue(&args.data[i]); break;
+            case MUL: acc *= getValue(&args.data[i]); break;
+            case DIV: acc /= getValue(&args.data[i]); break;
+        }
     }
     if (likely(i == args.size)) return setBox(acc, TAG_INT);
     const Box box = args.data[i];
@@ -399,14 +429,25 @@ Box primitiveIntAdd(BoxArgs args) {
     return boxSignal(SIGNAL_WRONG_TYPE);
 }
 
+Box primitiveIntAdd(BoxArgs args) { return primitiveIntOp(args, ADD); }
+Box primitiveIntSub(BoxArgs args) { return primitiveIntOp(args, SUB); }
+Box primitiveIntMul(BoxArgs args) { return primitiveIntOp(args, MUL); }
+Box primitiveIntDiv(BoxArgs args) { return primitiveIntOp(args, DIV); }
+
 int consEq(BoxRef a, BoxRef b) {
     todo("consEq not implemented");
     return 0;
 }
 
-int strEq(BoxRef a, BoxRef b) {
-    todo("consEq not implemented");
-    return 0;
+int strEq(Box a, Box b) {
+    if(getTag(&a) != getTag(&b)) return 0;
+    const char *ca = getRaw(a);
+    const char *cb = getRaw(b);
+    logDebug("IKUSO");
+    logDebug("%p - %p", ca, cb);
+    logDebug("%s - %s", ca, cb);
+    if(ca == cb) return 1; // Str dedup should make this faster
+    return !strcmp(ca,cb);
 }
 
 Box primitiveEq(BoxArgs args) {
@@ -445,8 +486,8 @@ Box primitiveEq(BoxArgs args) {
             eq &= consEq((BoxRef) NULL, (BoxRef) NULL);
         } else if (tag == TAG_STRING) {
             // TODO: implement
-            todo("Impelement strEq");
-            eq &= strEq((BoxRef) NULL, (BoxRef) NULL);
+            logWarning("ciao");
+            eq &= strEq(args.data[0], args.data[1]);
         }
     }
     if(!eq) return nil;

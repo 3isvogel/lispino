@@ -8,6 +8,11 @@ typedef enum
     FORM_LEAF = 1,
 } FormType;
 
+typedef enum
+{
+    ADD = 0, SUB, MUL, DIV
+} Arithmetic;
+
 /**
  * @brief Returns a primitive from a box
  *

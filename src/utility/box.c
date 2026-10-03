@@ -24,20 +24,22 @@ char* strTag(Tag tag) {
 
 Box getCar(const Box* const boxRef) {
     const Tag tag = getTag(boxRef);
-    // Propagate signal
-    if (tag == TAG_SIGNAL)
-        return *boxRef;
-    if (tag != TAG_CONS && tag != TAG_CLOSURE)
-        return boxSignal(SIGNAL_WRONG_ARGUMENTS);
+    // // Propagate signal
+    // if (tag == TAG_SIGNAL)
+    //     return *boxRef;
+    // if (tag != TAG_CONS && tag != TAG_CLOSURE)
+    //     return boxSignal(SIGNAL_WRONG_ARGUMENTS);
+    assert(tag == TAG_CONS || tag == TAG_CLOSURE);
     return ((Cons*)getValue(boxRef))->car;
 }
 
 Box getCdr(const Box* const boxRef) {
     const Tag tag = getTag(boxRef);
-    if (tag == TAG_SIGNAL)
-        return *boxRef;
-    if (tag != TAG_CONS && tag != TAG_CLOSURE)
-        return boxSignal(SIGNAL_WRONG_ARGUMENTS);
+    // if (tag == TAG_SIGNAL)
+    //     return *boxRef;
+    // if (tag != TAG_CONS && tag != TAG_CLOSURE)
+    //     return boxSignal(SIGNAL_WRONG_ARGUMENTS);
+    assert(tag == TAG_CONS || tag == TAG_CLOSURE);
     return ((Cons*)getValue(boxRef))->cdr;
 }
 

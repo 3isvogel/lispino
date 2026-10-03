@@ -143,6 +143,12 @@ void GCreadForm(BoxRef boxRef) {
         // Keep separated implementation of special symbols transforms
         GCspecialTransform(boxRef, "quote");
         break;
+    case TTYPE_QQUOTE:
+        GCspecialTransform(boxRef, "quasiquote");
+        break;
+    case TTYPE_UNQUOTE:
+        GCspecialTransform(boxRef, "unquote");
+        break;
     case TTYPE_EOF: break;
     default:
     case TTYPE_INT:

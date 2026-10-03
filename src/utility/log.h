@@ -7,6 +7,9 @@ extern "C" {
 #include <stdarg.h>
 #include "term_colors.h"
 
+#define MIN(a,b) (((a)<(b))?(a):(b))
+#define MAX(a,b) (((a)>(b))?(a):(b))
+
 #define LOG_LEVEL_LIST  \
 X(ALLOC,    Alloc,      TERM_CODE_SET(TERM_CODE_FG(TERM_COLOR_BLUE)))                   \
 X(DEBUG,    Debug,      TERM_CODE_SET(TERM_CODE_FG(TERM_COLOR_CYAN)))                   \

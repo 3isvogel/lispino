@@ -12,28 +12,38 @@
 (define LOG_WARNING 3)
 (define LOG_ERROR 4)
 
+; Logical not
+(define not (lambda (x) (if x nil x)))
+
+; Arithmetic modulo
+(define mod (lambda (x y) (- x (* y (/ x y)))))
+
+;; (define (cons? c)
+;;                 (if (eq (? c) t-cons)
+;;                   1))
+;; 
+;; (define (concat a b)
+;;   (if (eq a nil) b
+;;     (concat (cdr a) (cons (car a) b))))
+;; 
+;; 
+;; (define (reverse l)
+;;                   "Reverse order of list"
+;;                   (define (reverse-r old new)
+;;                                     (if (cons? old)
+;;                                       (reverse-r (cdr old) (cons (car old) new))
+;;                                       new))
+;;                   (reverse-r l ()))
+;; 
+;; (define (map func args)
+;;               "Apply function f to elements of list l"
+;;               (define (map-r old new)
+;;                             (if (cons? old)
+;;                               (map-r (cdr old) (cons (func (car old)) new))
+;;                               new))
+;;               (reverse (map-r args ())))
+
 ; Set log level
-(loglevel LOG_INFO)
-
-
-(define (cons? c)
-                (if (eq (? c) t-cons)
-                  1))
-
-(define (reverse l)
-                  "Reverse order of list"
-                  (define (reverse-r old new)
-                                    (if (cons? old)
-                                      (reverse-r (cdr old) (cons (car old) new))
-                                      new))
-                  (reverse-r l ()))
-
-(define (map func args)
-              "Apply function f to elements of list l"
-              (define (map-r old new)
-                            (if (cons? old)
-                              (map-r (cdr old) (cons (func (car old)) new))
-                              new))
-              (reverse (map-r args ())))
+(loglevel LOG_DEBUG)
 
 ;; (exit 0)
