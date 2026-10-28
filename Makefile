@@ -7,18 +7,20 @@
 # A generic build template for C/C++ programs
 
 # executable name
-EXE = app
+EXE := app
+MAIN := main.c
 
 # C compiler
-CC = clang
+CC := clang
 # C++ compiler
-CXX = clang
+CXX := clang
 # linker
-LD = clang
+LD := clang
 
-# C flags
-CFLAGS = -O2 -Wall
-# Needs -O2 or higher as it optimizes tail recursion
+# C and C++ flags
+CFLAGS := -O2 -Wall -g -Werror=pointer-arith
+# C++ flags
+CPPFLAGS :=
 
 # # Remove all logging except for errors
 # CFLAGS += -DBUILD_RELEASE
@@ -30,56 +32,47 @@ CFLAGS = -O2 -Wall
 #   support them
 # CFLAGS += -DLOG_DISABLE_COLOR
 
-# C++ flags
-CXXFLAGS = 
-# C/C++ flags
-CPPFLAGS =
 # dependency-generation flags
-DEPFLAGS = -MMD -MP -Isrc/
+DEPFLAGS := -MMD -MP -Isrc/
 # linker flags
-LDFLAGS =
-# library flags
-LDLIBS =
+LDFLAGS := -g -dead_strip
 # packages used
-PKG = 
+PKG :=
 # build directories
-BIN = bin
-OBJ = obj
-SRC = src
-SHA = shaders
+BIN := bin
+OBJ := obj
+SRC := src
+SHA := shaders
 # Additional dependencies on which rebuild objects
 # useful when changing stuff in the makefile to rebuild the project with new options
-OBJDEPS = Makefile 
+OBJDEPS := Makefile
 
 ################################################################################
 # Ideally you should not go under this line
 ################################################################################
 
-CFLAGS+=$(shell [ $(PKG) ] && pkg-config --cflags $(PKG))
-CXXFLAGS+=$(shell [ $(PKG) ] && pkg-config --cflags $(PKG))
-LDFLAGS+=$(shell [ $(PKG) ] && pkg-config --libs $(PKG))
+CFLAGS += $(shell [ "$(PKG)" ] && pkg-config --cflags $(PKG)) $(DEPFLAGS)
+LDFLAGS += $(shell [ "$(PKG)" ] && pkg-config --libs $(PKG))
 
-SOURCES := $(shell find -E src -iregex '.*\.(c|cc|cpp|cxx)')
+SOURCES.c := $(shell find $(SRC) -name '*.c')
+SOURCES.cpp := $(shell find $(SRC) -name '*.cpp')
 
-OBJECTS := \
-	$(patsubst $(SRC)/%.c, $(OBJ)/%.o, $(shell find $(SRC) -name "*.c")) \
-	$(patsubst $(SRC)/%.cc, $(OBJ)/%.o, $(shell find $(SRC) -name "*.cc")) \
-	$(patsubst $(SRC)/%.cpp, $(OBJ)/%.o, $(shell find $(SRC) -name "*.cpp")) \
-	$(patsubst $(SRC)/%.cxx, $(OBJ)/%.o, $(shell find $(SRC) -name "*.cxx"))
+OBJECTS.o := $(patsubst $(SRC)/%.c, $(OBJ)/%.o, $(SOURCES.c))
+OBJECTS.opp := $(patsubst $(SRC)/%.cpp, $(OBJ)/%.opp, $(SOURCES.cpp))
 
 SHADERS := \
 	$(patsubst $(SHA)/%.frag, $(SHA)/%Frag.spv, $(wildcard $(SHA)/*.frag)) \
 	$(patsubst $(SHA)/%.vert, $(SHA)/%Vert.spv, $(wildcard $(SHA)/*.vert))
 
 # include compiler-generated dependency rules
-DEPENDS := $(OBJECTS:.o=.d)
+DEPENDS := $(OBJECTS.o:.o=.d) $(OBJECTS.opp:.opp=.d)
 
 # compile C source
-COMPILE.c = $(CC) $(DEPFLAGS) $(CFLAGS) $(CPPFLAGS) -c -o $@
+COMPILE.c = $(CC) $(CFLAGS) -c -o $@
 # compile C++ source
-COMPILE.cxx = $(CXX) $(DEPFLAGS) $(CXXFLAGS) $(CPPFLAGS) -c -o $@
+COMPILE.cpp = $(CXX) $(CFLAGS) $(CPPFLAGS) -c -o $@
 # link objects
-LINK.o = $(LD) $(LDFLAGS) $(LDLIBS) $(OBJECTS) -o $@
+LINK.o = $(LD) $(LDFLAGS) $(OBJECTS.opp) $(OBJECTS.o) -o $@
 # shaders creation
 COMPILE.spv = glslc -o $@
 
@@ -90,11 +83,12 @@ ENSURE = @mkdir -p $(dir $@) 2> /dev/null || true
 .PHONY: all
 all: $(BIN)/$(EXE) $(SHADERS)
 
-$(BIN)/$(EXE): $(SRC) $(OBJ) $(BIN) $(OBJECTS)
+$(BIN)/$(EXE): $(SRC) $(OBJ) $(BIN) $(OBJECTS.o) $(OBJECTS.opp)
 	$(LINK.o)
 
 $(SRC):
 	mkdir -p $(SRC)
+	touch $(SRC)/$(MAIN)
 
 $(OBJ):
 	mkdir -p $(OBJ)
@@ -109,23 +103,9 @@ $(OBJ)/%.o:	$(SRC)/%.c $(OBJDEPS)
 	$(ENSURE)
 	$(COMPILE.c) $<
 
-$(OBJ)/%.o:	$(SRC)/%.cc $(OBJDEPS)
+$(OBJ)/%.opp:	$(SRC)/%.cpp $(OBJDEPS)
 	$(ENSURE)
-	$(COMPILE.cxx) $<
-
-$(OBJ)/%.o:	$(SRC)/%.cpp $(OBJDEPS)
-	$(ENSURE)
-	$(COMPILE.cxx) $<
-
-$(OBJ)/%.o:	$(SRC)/%.cxx $(OBJDEPS)
-	$(ENSURE)
-	$(COMPILE.cxx) $<
-
-$(SHA)/%Frag.spv: $(SHA)/%.frag
-	$(COMPILE.spv) $<
-
-$(SHA)/%Vert.spv: $(SHA)/%.vert
-	$(COMPILE.spv) $<
+	$(COMPILE.cpp) $<
 
 # force rebuild
 .PHONY: remake
@@ -139,17 +119,10 @@ run: $(BIN)/$(EXE) $(SHADERS)
 # remove previous build and objects
 .PHONY: clean
 clean:
-	$(RM) $(OBJECTS)
+	$(RM) $(OBJECTS.o) $(OBJECTS.opp)
 	$(RM) $(DEPENDS)
 	$(RM) $(SHA)/*.spv
 	$(RM) $(BIN)/$(EXE)
-
-# remove everything except source
-.PHONY: reset
-reset:
-	$(RM) -r $(OBJ)
-	$(RM) -r $(BIN)
-	$(RM) $(SHA)/*.spv
 
 # compile shaders only
 .PHONY: compile-shaders
